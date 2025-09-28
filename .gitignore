@@ -1,0 +1,28 @@
+cat > .gitignore << EOF
+# Dependencies
+node_modules/
+lib/
+
+# Build artifacts
+out/
+cache/
+artifacts/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Foundry specific
+broadcast/
+EOF
