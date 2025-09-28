@@ -174,10 +174,7 @@ contract Conspirapuppets is ERC721SeaDrop {
         address seaDropImpl,
         PublicDrop calldata publicDrop
     ) external onlyOwner {
-        require(publicDrop.mintPrice == 0.005 ether, "Mint price must be 0.005 ETH");
-        require(publicDrop.maxTotalMintableByWallet <= 10, "Max per wallet too high");
-        
-        // Use the correct SeaDrop function name
+        // Full flexibility - all parameters configurable via SeaDrop UI
         this.updatePublicDrop(seaDropImpl, publicDrop);
     }
 
