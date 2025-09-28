@@ -41,4 +41,4 @@ make install
 make build
 
 # Run tests
-make test-all
+make test-all# conspirapuppets_x_tinfoil
