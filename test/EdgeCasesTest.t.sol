@@ -242,9 +242,10 @@ contract ConspiraPuppetsTest is Test {
         assertTrue(tinfoilToken.tradingEnabled(), "Trading should be enabled");
         
         // Check operational funds are available for withdrawal
-        (, , , , , uint256 operationalFunds) = conspirapuppets.getMintStatus();
+        (, , , , , uint256 operationalFunds, bool lpCreated) = conspirapuppets.getMintStatus();
         uint256 expectedOperationalFunds = (MAX_SUPPLY * MINT_PRICE) / 2;
         assertEq(operationalFunds, expectedOperationalFunds, "Operational funds should be available");
+        assertTrue(lpCreated, "LP should be created");
         
         // Withdraw operational funds
         conspirapuppets.withdrawOperationalFunds();
@@ -256,6 +257,7 @@ contract ConspiraPuppetsTest is Test {
         console.log("  Mint completed:", conspirapuppets.mintCompleted());
         console.log("  Trading enabled:", tinfoilToken.tradingEnabled());
         console.log("  Operational funds withdrawn:", actualWithdrawn / 1e18, "ETH");
+        console.log("  LP created:", lpCreated);
         
         // Check LP creation
         address lpToken = mockAerodrome.getPair(address(tinfoilToken), address(0));
@@ -499,6 +501,10 @@ contract ConspiraPuppetsTest is Test {
         assertTrue(conspirapuppets.mintCompleted(), "Mint completed");
         assertTrue(tinfoilToken.tradingEnabled(), "Trading enabled");
         
+        // Check LP creation status
+        (, , , , , , bool lpCreated) = conspirapuppets.getMintStatus();
+        assertTrue(lpCreated, "LP should be created");
+        
         // Withdraw operational funds
         conspirapuppets.withdrawOperationalFunds();
         
@@ -507,6 +513,7 @@ contract ConspiraPuppetsTest is Test {
         
         console.log("Mint completed:", conspirapuppets.mintCompleted());
         console.log("Trading enabled:", tinfoilToken.tradingEnabled());
+        console.log("LP created:", lpCreated);
         console.log("Operational funds withdrawn:", operationalFunds / 1e18, "ETH");
         console.log("LP created and burned");
         
@@ -531,6 +538,7 @@ contract ConspiraPuppetsTest is Test {
         console.log("User3 tokens:", tinfoilToken.balanceOf(user3) / 1e18);
         console.log("Owner tokens:", tinfoilToken.balanceOf(owner) / 1e18);
         console.log("Trading enabled:", tinfoilToken.tradingEnabled());
+        console.log("LP created:", lpCreated);
         console.log("Operational funds:", operationalFunds / 1e18, "ETH");
         
         console.log("FULL INTEGRATION TEST PASSED!");

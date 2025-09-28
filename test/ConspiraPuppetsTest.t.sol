@@ -242,7 +242,7 @@ contract ConspiraPuppetsTest is Test {
         assertTrue(tinfoilToken.tradingEnabled(), "Trading should be enabled");
         
         // Check operational funds are available for withdrawal
-        (, , , , , uint256 operationalFunds) = conspirapuppets.getMintStatus();
+        (, , , , , uint256 operationalFunds, bool lpCreated) = conspirapuppets.getMintStatus();
         uint256 expectedOperationalFunds = (MAX_SUPPLY * MINT_PRICE) / 2;
         assertEq(operationalFunds, expectedOperationalFunds, "Operational funds should be available");
         
@@ -345,7 +345,7 @@ contract ConspiraPuppetsTest is Test {
         conspirapuppets.mint(owner, MAX_SUPPLY);
         
         // Check operational funds are available
-        (, , , , , uint256 operationalFunds) = conspirapuppets.getMintStatus();
+        (, , , , , uint256 operationalFunds, bool lpCreated) = conspirapuppets.getMintStatus();
         assertTrue(operationalFunds > 0, "Should have operational funds available");
         
         // Withdraw funds
@@ -357,7 +357,7 @@ contract ConspiraPuppetsTest is Test {
         assertEq(withdrawn, operationalFunds, "Should have withdrawn operational funds");
         
         // Check operational funds reset to 0
-        (, , , , , uint256 remainingFunds) = conspirapuppets.getMintStatus();
+        (, , , , , uint256 remainingFunds, bool lpStillCreated) = conspirapuppets.getMintStatus();
         assertEq(remainingFunds, 0, "Operational funds should be reset to 0");
         
         vm.stopPrank();

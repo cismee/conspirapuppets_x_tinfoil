@@ -20,14 +20,15 @@ contract CheckStatusScript is Script {
         TinfoilToken tinfoilToken = TinfoilToken(tinfoilAddress);
         Conspirapuppets conspirapuppets = Conspirapuppets(nftAddress);
         
-        // Get NFT status
+        // Get NFT status - NOW WITH 7 RETURN VALUES
         (
             uint256 totalSupply,
             uint256 maxSupply,
             bool mintCompleted,
             uint256 contractBalance,
             uint256 tokensPerNFT,
-            uint256 operationalFunds
+            uint256 operationalFunds,
+            bool lpCreated
         ) = conspirapuppets.getMintStatus();
         
         // Get token status
@@ -49,6 +50,7 @@ contract CheckStatusScript is Script {
         console.log("  Contract Balance:", contractBalance / 1e18, "ETH");
         console.log("  Tokens per NFT:", tokensPerNFT / 1e18);
         console.log("  Operational Funds Available:", operationalFunds / 1e18, "ETH");
+        console.log("  LP Created:", lpCreated);
         
         console.log("\nToken Status:");
         console.log("  Total Supply:", tokenTotalSupply / 1e18);
@@ -64,9 +66,17 @@ contract CheckStatusScript is Script {
         
         if (mintCompleted) {
             console.log("COLLECTION SOLD OUT!");
-            console.log("   -> LP created and burned");
+            if (lpCreated) {
+                console.log("   -> LP created and burned");
+            } else {
+                console.log("   -> WARNING: LP creation may have failed");
+            }
             console.log("   -> Trading enabled");
-            console.log("   -> Operational funds withdrawn");
+            if (operationalFunds > 0) {
+                console.log("   -> Operational funds available for withdrawal");
+            } else {
+                console.log("   -> Operational funds withdrawn");
+            }
         } else {
             uint256 remaining = maxSupply - totalSupply;
             console.log("Remaining to mint:", remaining, "NFTs");
