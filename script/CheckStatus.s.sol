@@ -26,7 +26,8 @@ contract CheckStatusScript is Script {
             uint256 maxSupply,
             bool mintCompleted,
             uint256 contractBalance,
-            uint256 tokensPerNFT
+            uint256 tokensPerNFT,
+            uint256 operationalFunds
         ) = conspirapuppets.getMintStatus();
         
         // Get token status
@@ -47,6 +48,7 @@ contract CheckStatusScript is Script {
         console.log("  Mint Completed:", mintCompleted);
         console.log("  Contract Balance:", contractBalance / 1e18, "ETH");
         console.log("  Tokens per NFT:", tokensPerNFT / 1e18);
+        console.log("  Operational Funds Available:", operationalFunds / 1e18, "ETH");
         
         console.log("\nToken Status:");
         console.log("  Total Supply:", tokenTotalSupply / 1e18);

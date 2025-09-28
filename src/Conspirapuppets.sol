@@ -30,12 +30,14 @@ interface IAerodrome {
 contract Conspirapuppets is ERC721SeaDrop {
     // Constants
     uint256 public constant MAX_SUPPLY = 3333;
-    uint256 public constant TOKENS_PER_NFT = 1_000_000 * 10**18; // 1M tokens with 18 decimals
-    uint256 public constant TOTAL_TOKEN_SUPPLY = 3_330_000_000 * 10**18; // 3.33B tokens
+    uint256 public constant TOKENS_PER_NFT = 499_549 * 10**18; // ~500K tokens with 18 decimals
+    uint256 public constant TOTAL_TOKEN_SUPPLY = 3_330_000_000 * 10**18; // 3.33B tokens total
     uint256 public constant LP_TOKEN_AMOUNT = 1_665_000_000 * 10**18; // 1.665B tokens (50% for LP)
+    uint256 public constant NFT_TOKEN_ALLOCATION = 1_665_000_000 * 10**18; // 1.665B tokens for NFT holders (50%)
     
     // State variables
     bool public mintCompleted = false;
+    uint256 public operationalFunds = 0; // Track ETH available for withdrawal
     
     // Addresses
     address public immutable tinfoilToken;
@@ -114,20 +116,13 @@ contract Conspirapuppets is ERC721SeaDrop {
         
         uint256 totalEth = address(this).balance;
         uint256 lpEthAmount = totalEth / 2;        // 50% for LP
-        uint256 operationalEth = totalEth - lpEthAmount; // 50% for operations
+        operationalFunds = totalEth - lpEthAmount; // 50% for operations (stored for withdrawal)
         
         // Enable token trading first
         ITinfoilToken(tinfoilToken).enableTrading();
         
         // Create LP and burn LP tokens
         _createAndBurnLP(lpEthAmount);
-        
-        // Send operational funds to owner
-        if (operationalEth > 0) {
-            (bool success,) = owner().call{value: operationalEth}("");
-            require(success, "Operational ETH transfer failed");
-            emit OperationalFundsWithdrawn(operationalEth);
-        }
         
         emit MintCompleted();
     }
@@ -187,12 +182,29 @@ contract Conspirapuppets is ERC721SeaDrop {
     }
 
     /**
+     * @dev Withdraw operational funds - only callable by owner after mint completion
+     */
+    function withdrawOperationalFunds() external onlyOwner {
+        require(mintCompleted, "Mint not completed yet");
+        require(operationalFunds > 0, "No operational funds available");
+        
+        uint256 amount = operationalFunds;
+        operationalFunds = 0; // Reset to prevent re-entrancy
+        
+        (bool success,) = owner().call{value: amount}("");
+        require(success, "Withdrawal failed");
+        
+        emit OperationalFundsWithdrawn(amount);
+    }
+
+    /**
      * @dev Emergency withdraw function (only after mint completion)
      */
     function emergencyWithdraw() external onlyOwner {
         require(mintCompleted, "Can only withdraw after mint completion");
         uint256 balance = address(this).balance;
         if (balance > 0) {
+            operationalFunds = 0; // Reset operational funds tracking
             (bool success,) = owner().call{value: balance}("");
             require(success, "Emergency withdrawal failed");
         }
@@ -206,14 +218,16 @@ contract Conspirapuppets is ERC721SeaDrop {
         uint256 _maxSupply,
         bool _mintCompleted,
         uint256 _contractBalance,
-        uint256 _tokensPerNFT
+        uint256 _tokensPerNFT,
+        uint256 _operationalFunds
     ) {
         return (
             totalSupply(),
             MAX_SUPPLY,
             mintCompleted,
             address(this).balance,
-            TOKENS_PER_NFT
+            TOKENS_PER_NFT,
+            operationalFunds
         );
     }
 

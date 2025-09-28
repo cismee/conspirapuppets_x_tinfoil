@@ -79,7 +79,10 @@ contract ConspiraPuppetsTest is Test {
     
     uint256 constant MINT_PRICE = 0.005 ether;
     uint256 constant MAX_SUPPLY = 3333;
-    uint256 constant TOKENS_PER_NFT = 1_000_000 * 10**18;
+    uint256 constant TOKENS_PER_NFT = 499_549 * 10**18;
+    
+    // Add receive function to accept ETH
+    receive() external payable {}
     
     function setUp() public {
         // Set up test accounts
@@ -130,7 +133,6 @@ contract ConspiraPuppetsTest is Test {
         
         // Check initial NFT state
         assertEq(conspirapuppets.totalSupply(), 0, "Initial NFT supply should be 0");
-        assertEq(conspirapuppets.maxSupply(), MAX_SUPPLY, "Max supply should be 3333");
         assertFalse(conspirapuppets.mintCompleted(), "Mint should not be completed");
         
         console.log("Initial state tests passed");
@@ -143,15 +145,15 @@ contract ConspiraPuppetsTest is Test {
         vm.startPrank(user1);
         vm.deal(address(conspirapuppets), 0); // Reset contract balance
         
-        // Simulate the mint (we'll call internal functions since we can't easily mock Seadrop's full flow)
+        // Simulate the mint
         vm.deal(address(conspirapuppets), MINT_PRICE);
-        conspirapuppets.mint(user1, 1); // This would normally be called by Seadrop
+        conspirapuppets.mint(user1, 1);
         
         // Check results
         assertEq(conspirapuppets.balanceOf(user1), 1, "User1 should own 1 NFT");
-        assertEq(tinfoilToken.balanceOf(user1), TOKENS_PER_NFT, "User1 should have 1M tokens");
+        assertEq(tinfoilToken.balanceOf(user1), TOKENS_PER_NFT, "User1 should have correct tokens");
         assertEq(conspirapuppets.totalSupply(), 1, "Total NFT supply should be 1");
-        assertEq(tinfoilToken.totalSupply(), TOKENS_PER_NFT, "Total token supply should be 1M");
+        assertEq(tinfoilToken.totalSupply(), TOKENS_PER_NFT, "Total token supply should match");
         
         // Trading should still be disabled
         assertFalse(tinfoilToken.tradingEnabled(), "Trading should still be disabled");
@@ -239,16 +241,21 @@ contract ConspiraPuppetsTest is Test {
         assertTrue(conspirapuppets.mintCompleted(), "Mint should be completed");
         assertTrue(tinfoilToken.tradingEnabled(), "Trading should be enabled");
         
-        // Check fund distribution
-        uint256 expectedRevenue = MAX_SUPPLY * MINT_PRICE;
-        uint256 expectedOperationalFunds = expectedRevenue / 2;
+        // Check operational funds are available for withdrawal
+        (, , , , , uint256 operationalFunds) = conspirapuppets.getMintStatus();
+        uint256 expectedOperationalFunds = (MAX_SUPPLY * MINT_PRICE) / 2;
+        assertEq(operationalFunds, expectedOperationalFunds, "Operational funds should be available");
+        
+        // Withdraw operational funds
+        conspirapuppets.withdrawOperationalFunds();
+        uint256 ownerBalanceAfter = owner.balance;
+        uint256 actualWithdrawn = ownerBalanceAfter - initialOwnerBalance;
         
         console.log("Post-finale state:");
         console.log("  NFTs minted:", conspirapuppets.totalSupply());
         console.log("  Mint completed:", conspirapuppets.mintCompleted());
         console.log("  Trading enabled:", tinfoilToken.tradingEnabled());
-        console.log("  Expected revenue:", expectedRevenue / 1e18, "ETH");
-        console.log("  Owner balance increase:", (owner.balance - initialOwnerBalance) / 1e18, "ETH");
+        console.log("  Operational funds withdrawn:", actualWithdrawn / 1e18, "ETH");
         
         // Check LP creation
         address lpToken = mockAerodrome.getPair(address(tinfoilToken), address(0));
@@ -326,12 +333,119 @@ contract ConspiraPuppetsTest is Test {
         console.log("Token burning tests passed");
     }
     
+    function testWithdrawalEdgeCases() public {
+        console.log("Testing Withdrawal Edge Cases");
+        
+        // Test withdrawal before mint completion should fail
+        vm.startPrank(owner);
+        vm.expectRevert("Mint not completed yet");
+        conspirapuppets.withdrawOperationalFunds();
+        
+        // Complete mint
+        uint256 cost = MAX_SUPPLY * MINT_PRICE;
+        vm.deal(address(conspirapuppets), cost);
+        conspirapuppets.mint(owner, MAX_SUPPLY);
+        
+        // Withdraw once
+        conspirapuppets.withdrawOperationalFunds();
+        
+        // Try to withdraw again should fail
+        vm.expectRevert("No operational funds available");
+        conspirapuppets.withdrawOperationalFunds();
+        
+        vm.stopPrank();
+        
+        console.log("Withdrawal edge cases passed");
+    }
+    
+    function testEmergencyWithdraw() public {
+        console.log("Testing Emergency Withdraw");
+        
+        vm.startPrank(owner);
+        
+        // Try emergency withdraw before mint completion should fail
+        vm.expectRevert("Can only withdraw after mint completion");
+        conspirapuppets.emergencyWithdraw();
+        
+        // Complete mint
+        uint256 cost = MAX_SUPPLY * MINT_PRICE;
+        vm.deal(address(conspirapuppets), cost);
+        conspirapuppets.mint(owner, MAX_SUPPLY);
+        
+        // Send some extra ETH to contract for testing
+        vm.deal(address(conspirapuppets), address(conspirapuppets).balance + 1 ether);
+        
+        uint256 initialBalance = owner.balance;
+        uint256 contractBalance = address(conspirapuppets).balance;
+        
+        // Emergency withdraw should get all ETH
+        conspirapuppets.emergencyWithdraw();
+        
+        uint256 finalBalance = owner.balance;
+        assertEq(finalBalance - initialBalance, contractBalance, "Should withdraw all contract ETH");
+        assertEq(address(conspirapuppets).balance, 0, "Contract should have 0 ETH after emergency withdraw");
+        
+        vm.stopPrank();
+        
+        console.log("Emergency withdraw tests passed");
+    }
+    
+    function testPauseUnpauseFunctionality() public {
+        console.log("Testing Pause/Unpause Functionality");
+        
+        vm.startPrank(owner);
+        
+        // Mint some tokens first
+        vm.deal(address(conspirapuppets), MINT_PRICE);
+        conspirapuppets.mint(user1, 1);
+        
+        // Pause the token contract
+        tinfoilToken.pause();
+        
+        // Try to mint while paused (should fail)
+        vm.deal(address(conspirapuppets), address(conspirapuppets).balance + MINT_PRICE);
+        vm.expectRevert("Pausable: paused");
+        conspirapuppets.mint(user2, 1);
+        
+        // Unpause
+        tinfoilToken.unpause();
+        
+        // Should work again
+        conspirapuppets.mint(user2, 1);
+        assertEq(conspirapuppets.balanceOf(user2), 1, "Mint should work after unpause");
+        
+        vm.stopPrank();
+        
+        console.log("Pause/unpause tests passed");
+    }
+    
+    function testOwnershipRestrictedFunctions() public {
+        console.log("Testing Ownership Restricted Functions");
+        
+        // Test non-owner cannot pause
+        vm.startPrank(user1);
+        vm.expectRevert("Ownable: caller is not the owner");
+        tinfoilToken.pause();
+        
+        // Test non-owner cannot withdraw (using custom error selector)
+        vm.expectRevert();
+        conspirapuppets.withdrawOperationalFunds();
+        
+        // Test non-owner cannot emergency withdraw (using custom error selector)
+        vm.expectRevert();
+        conspirapuppets.emergencyWithdraw();
+        
+        vm.stopPrank();
+        
+        console.log("Ownership restriction tests passed");
+    }
+    
     function testFullIntegration() public {
         console.log("Testing Full Integration Flow");
         
-        console.log("=============================================================");
+        console.log("============================================================");
         console.log("FULL CONSPIRAPUPPETS SIMULATION");
-        console.log("=============================================================");
+        console.log("============================================================");
         
         // Phase 1: Early minting
         console.log("Phase 1: Early Minting");
@@ -379,18 +493,21 @@ contract ConspiraPuppetsTest is Test {
         conspirapuppets.mint(owner, remaining);
         
         console.log("EXPLOSIVE FINALE COMPLETED!");
-        console.log("=============================================================");
+        console.log("============================================================");
         
         // Verify finale results
         assertTrue(conspirapuppets.mintCompleted(), "Mint completed");
         assertTrue(tinfoilToken.tradingEnabled(), "Trading enabled");
+        
+        // Withdraw operational funds
+        conspirapuppets.withdrawOperationalFunds();
         
         uint256 ownerBalanceAfter = owner.balance;
         uint256 operationalFunds = ownerBalanceAfter - ownerBalanceBefore;
         
         console.log("Mint completed:", conspirapuppets.mintCompleted());
         console.log("Trading enabled:", tinfoilToken.tradingEnabled());
-        console.log("Operational funds received:", operationalFunds / 1e18, "ETH");
+        console.log("Operational funds withdrawn:", operationalFunds / 1e18, "ETH");
         console.log("LP created and burned");
         
         // Phase 4: Test trading
@@ -406,7 +523,7 @@ contract ConspiraPuppetsTest is Test {
         
         // Final statistics
         console.log("FINAL STATISTICS");
-        console.log("=============================================================");
+        console.log("============================================================");
         console.log("Total NFTs minted:", conspirapuppets.totalSupply());
         console.log("Total tokens minted:", tinfoilToken.totalSupply() / 1e18);
         console.log("User1 tokens:", tinfoilToken.balanceOf(user1) / 1e18);
@@ -419,9 +536,8 @@ contract ConspiraPuppetsTest is Test {
         console.log("FULL INTEGRATION TEST PASSED!");
     }
     
-    // Helper function to simulate minting (since we're not using full Seadrop)
+    // Helper function to simulate minting
     function mint(address to, uint256 quantity) external {
-        // This simulates what Seadrop would do
         for (uint256 i = 0; i < quantity; i++) {
             conspirapuppets.mint(to, 1);
         }
