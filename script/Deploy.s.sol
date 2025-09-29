@@ -61,6 +61,9 @@ contract DeployScript is Script {
         
         conspirapuppets.configurePublicDrop(SEADROP_ADDRESS, publicDrop);
         console.log("Public drop configured");
+        console.log("  Mint price: 0.005 ETH");
+        console.log("  Max per wallet: 10");
+        console.log("  Duration: 30 days");
         
         console.log("\nStep 5: Setting up fee recipients...");
         conspirapuppets.updateAllowedFeeRecipient(SEADROP_ADDRESS, deployer, true);
@@ -74,22 +77,39 @@ contract DeployScript is Script {
         console.log("Contract Addresses:");
         console.log("  TinfoilToken:", address(tinfoilToken));
         console.log("  Conspirapuppets:", address(conspirapuppets));
-        console.log("  Seadrop:", SEADROP_ADDRESS);
+        console.log("  SeaDrop:", SEADROP_ADDRESS);
         console.log("  Aerodrome Router:", AERODROME_ROUTER);
         console.log("  Aerodrome Factory:", AERODROME_FACTORY);
         
-        console.log("\nConfiguration:");
-        console.log("  Mint Price: 0.005 ETH");
-        console.log("  Max per wallet: 10 NFTs");
-        console.log("  Total supply: 3,333 NFTs");
-        console.log("  Tokens per NFT: ~500,000 TINFOIL");
+        console.log("\nToken Economics:");
+        console.log("  Max NFT Supply: 3,333");
+        console.log("  Tokens per NFT: 499,549 TINFOIL");
+        console.log("  NFT Allocation: 1,664,996,817 TINFOIL");
+        console.log("  Remainder Mint: 3,183 TINFOIL (to owner)");
+        console.log("  LP Allocation: 1,665,000,000 TINFOIL");
+        console.log("  Total Supply: 3,330,000,000 TINFOIL");
         
-        console.log("\nEconomics:");
-        console.log("  Total potential revenue: 16.665 ETH");
-        console.log("  LP lock: 8.3325 ETH + 1.665B TINFOIL");
-        console.log("  Operations: 8.3325 ETH");
+        console.log("\nRevenue Split (at sellout):");
+        console.log("  Total Revenue: 16.665 ETH");
+        console.log("  LP (50%): 8.3325 ETH + 1.665B TINFOIL");
+        console.log("  Operations (50%): 8.3325 ETH");
+        console.log("  LP Tokens: BURNED (permanently locked)");
+        
+        console.log("\nNext Steps:");
+        console.log("  1. Verify contracts on Basescan");
+        console.log("  2. Collection appears on OpenSea automatically");
+        console.log("  3. Monitor mint progress");
+        console.log("  4. At sellout -> automatic LP creation & burn");
+        console.log("  5. Trading enabled after LP burn");
+        console.log("  6. Withdraw operational funds");
+        
+        console.log("\nIMPORTANT:");
+        console.log("  - Remove mintForTesting() before mainnet deployment");
+        console.log("  - Test on Base Sepolia first");
+        console.log("  - Verify all contract addresses");
         
         console.log("\nVerification Commands:");
-        console.log("  forge verify-contract", address(tinfoilToken), "src/TinfoilToken.sol:TinfoilToken --chain base");
+        console.log("forge verify-contract", address(tinfoilToken), "src/TinfoilToken.sol:TinfoilToken --chain base --etherscan-api-key $BASESCAN_API_KEY");
+        console.log("forge verify-contract", address(conspirapuppets), "src/Conspirapuppets.sol:Conspirapuppets --chain base --etherscan-api-key $BASESCAN_API_KEY --constructor-args $(cast abi-encode 'constructor(string,string,address[],address,address,address)' 'Conspirapuppets' 'CPUP' '[0x00005EA00Ac477B1030CE78506496e8C2dE24bf5]'", address(tinfoilToken), AERODROME_ROUTER, AERODROME_FACTORY, ")");
     }
 }
