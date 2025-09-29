@@ -8,7 +8,6 @@ import "../src/Conspirapuppets.sol";
 
 contract CheckStatusScript is Script {
     function run() external view {
-        // Get contract addresses from environment or use deployed addresses
         address tinfoilAddress = vm.envAddress("TINFOIL_TOKEN_ADDRESS");
         address payable nftAddress = payable(vm.envAddress("CONSPIRAPUPPETS_ADDRESS"));
         
@@ -20,7 +19,6 @@ contract CheckStatusScript is Script {
         TinfoilToken tinfoilToken = TinfoilToken(tinfoilAddress);
         Conspirapuppets conspirapuppets = Conspirapuppets(nftAddress);
         
-        // Get NFT status - NOW WITH 7 RETURN VALUES
         (
             uint256 totalSupply,
             uint256 maxSupply,
@@ -31,7 +29,6 @@ contract CheckStatusScript is Script {
             bool lpCreated
         ) = conspirapuppets.getMintStatus();
         
-        // Get token status
         (
             uint256 tokenTotalSupply,
             uint256 tokenMaxSupply,
@@ -41,7 +38,6 @@ contract CheckStatusScript is Script {
             bool maxSupplyReached
         ) = tinfoilToken.getTokenInfo();
         
-        // Get trading status
         (bool trading, string memory statusMessage) = tinfoilToken.getTradingStatus();
         
         console.log("\nNFT Collection Status:");
@@ -60,7 +56,6 @@ contract CheckStatusScript is Script {
         console.log("  Trading Enabled:", tradingEnabled);
         console.log("  Status:", statusMessage);
         
-        // Calculate progress
         uint256 progress = (totalSupply * 100) / maxSupply;
         console.log("\nMint Progress:", progress, "%");
         
@@ -80,8 +75,6 @@ contract CheckStatusScript is Script {
         } else {
             uint256 remaining = maxSupply - totalSupply;
             console.log("Remaining to mint:", remaining, "NFTs");
-            uint256 remainingRevenue = (remaining * 0.005 ether) / 1e18;
-            console.log("Potential revenue from remaining:", remainingRevenue, "ETH");
         }
         
         console.log("\nLinks:");

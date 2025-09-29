@@ -6,41 +6,16 @@ import "forge-std/console.sol";
 import "../src/TinfoilToken.sol";
 import "../src/Conspirapuppets.sol";
 
-// Mock Seadrop contract for testing
 contract MockSeaDrop {
     function updatePublicDrop(address, bytes calldata) external {}
     function updateAllowedFeeRecipient(address, address, bool) external {}
 }
 
-// Mock Aerodrome router for testing
-contract MockAerodrome {
+contract MockAerodromeFactory {
     address public mockPair;
     
     constructor() {
         mockPair = address(new MockLPToken());
-    }
-    
-    function addLiquidity(
-        address tokenA,
-        address tokenB,
-        bool stable,
-        uint256 amountADesired,
-        uint256 amountBDesired,
-        uint256 amountAMin,
-        uint256 amountBMin,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
-        // Simulate liquidity addition
-        amountA = amountADesired;
-        amountB = amountBDesired;
-        liquidity = amountADesired; // Simplified
-        
-        // Mint LP tokens to the recipient
-        MockLPToken(mockPair).mint(to, liquidity);
-        
-        console.log("Mock LP created with tokens and ETH");
-        return (amountA, amountB, liquidity);
     }
     
     function getPair(address, address) external view returns (address) {
@@ -48,7 +23,34 @@ contract MockAerodrome {
     }
 }
 
-// Mock LP token for testing
+contract MockAerodromeRouter {
+    address public factory;
+    
+    constructor(address _factory) {
+        factory = _factory;
+    }
+    
+    function addLiquidityETH(
+        address token,
+        bool stable,
+        uint256 amountTokenDesired,
+        uint256 amountTokenMin,
+        uint256 amountETHMin,
+        address to,
+        uint256 deadline
+    ) external payable returns (uint256 amountToken, uint256 amountETH, uint256 liquidity) {
+        amountToken = amountTokenDesired;
+        amountETH = msg.value;
+        liquidity = amountTokenDesired;
+        
+        address pair = MockAerodromeFactory(factory).getPair(token, address(0));
+        MockLPToken(pair).mint(to, liquidity);
+        
+        console.log("Mock LP created with tokens and ETH");
+        return (amountToken, amountETH, liquidity);
+    }
+}
+
 contract MockLPToken {
     mapping(address => uint256) public balanceOf;
     uint256 public totalSupply;
@@ -70,7 +72,8 @@ contract ConspiraPuppetsTest is Test {
     TinfoilToken public tinfoilToken;
     Conspirapuppets public conspirapuppets;
     MockSeaDrop public mockSeaDrop;
-    MockAerodrome public mockAerodrome;
+    MockAerodromeFactory public mockFactory;
+    MockAerodromeRouter public mockRouter;
     
     address public owner;
     address public user1;
@@ -81,26 +84,22 @@ contract ConspiraPuppetsTest is Test {
     uint256 constant MAX_SUPPLY = 3333;
     uint256 constant TOKENS_PER_NFT = 499_549 * 10**18;
     
-    // Add receive function to accept ETH
     receive() external payable {}
     
     function setUp() public {
-        // Set up test accounts
         owner = address(this);
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
         user3 = makeAddr("user3");
         
-        // Give users some ETH
         vm.deal(user1, 100 ether);
         vm.deal(user2, 100 ether);
         vm.deal(user3, 100 ether);
         
-        // Deploy mock contracts
         mockSeaDrop = new MockSeaDrop();
-        mockAerodrome = new MockAerodrome();
+        mockFactory = new MockAerodromeFactory();
+        mockRouter = new MockAerodromeRouter(address(mockFactory));
         
-        // Deploy main contracts
         tinfoilToken = new TinfoilToken();
         
         address[] memory allowedSeaDrop = new address[](1);
@@ -111,27 +110,26 @@ contract ConspiraPuppetsTest is Test {
             "CPUP",
             allowedSeaDrop,
             address(tinfoilToken),
-            address(mockAerodrome)
+            address(mockRouter),
+            address(mockFactory)
         );
         
-        // Link contracts
         tinfoilToken.setNFTContract(address(conspirapuppets));
         
         console.log("Test setup complete");
         console.log("TinfoilToken:", address(tinfoilToken));
         console.log("Conspirapuppets:", address(conspirapuppets));
-        console.log("MockAerodrome:", address(mockAerodrome));
+        console.log("MockRouter:", address(mockRouter));
+        console.log("MockFactory:", address(mockFactory));
     }
     
     function testInitialState() public {
         console.log("Testing Initial State");
         
-        // Check initial token state
         assertEq(tinfoilToken.totalSupply(), 0, "Initial token supply should be 0");
         assertFalse(tinfoilToken.tradingEnabled(), "Trading should be disabled initially");
         assertEq(tinfoilToken.nftContract(), address(conspirapuppets), "NFT contract should be set");
         
-        // Check initial NFT state
         assertEq(conspirapuppets.totalSupply(), 0, "Initial NFT supply should be 0");
         assertFalse(conspirapuppets.mintCompleted(), "Mint should not be completed");
         
@@ -141,24 +139,19 @@ contract ConspiraPuppetsTest is Test {
     function testSingleMint() public {
         console.log("Testing Single Mint");
         
-        // Simulate user1 minting 1 NFT
         vm.startPrank(user1);
-        vm.deal(address(conspirapuppets), 0); // Reset contract balance
+        vm.deal(address(conspirapuppets), 0);
         
-        // Simulate the mint
         vm.deal(address(conspirapuppets), MINT_PRICE);
         conspirapuppets.mint(user1, 1);
         
-        // Check results
         assertEq(conspirapuppets.balanceOf(user1), 1, "User1 should own 1 NFT");
         assertEq(tinfoilToken.balanceOf(user1), TOKENS_PER_NFT, "User1 should have correct tokens");
         assertEq(conspirapuppets.totalSupply(), 1, "Total NFT supply should be 1");
         assertEq(tinfoilToken.totalSupply(), TOKENS_PER_NFT, "Total token supply should match");
         
-        // Trading should still be disabled
         assertFalse(tinfoilToken.tradingEnabled(), "Trading should still be disabled");
         
-        // Try to transfer tokens (should fail)
         vm.expectRevert("Trading not enabled yet - wait for mint completion");
         tinfoilToken.transfer(user2, 1000);
         
@@ -169,11 +162,10 @@ contract ConspiraPuppetsTest is Test {
     function testMultipleMints() public {
         console.log("Testing Multiple Mints");
         
-        // Mint several NFTs to different users
         uint256[] memory amounts = new uint256[](3);
-        amounts[0] = 5;  // user1: 5 NFTs
-        amounts[1] = 3;  // user2: 3 NFTs  
-        amounts[2] = 2;  // user3: 2 NFTs
+        amounts[0] = 5;
+        amounts[1] = 3;
+        amounts[2] = 2;
         
         address[] memory users = new address[](3);
         users[0] = user1;
@@ -192,7 +184,6 @@ contract ConspiraPuppetsTest is Test {
             
             totalMinted += amounts[i];
             
-            // Check balances
             assertEq(conspirapuppets.balanceOf(users[i]), amounts[i], "Incorrect NFT balance");
             assertEq(tinfoilToken.balanceOf(users[i]), amounts[i] * TOKENS_PER_NFT, "Incorrect token balance");
             
@@ -212,7 +203,6 @@ contract ConspiraPuppetsTest is Test {
         
         uint256 initialOwnerBalance = owner.balance;
         
-        // Mint 3332 NFTs (leaving 1 for the finale)
         vm.startPrank(owner);
         uint256 prefinaleAmount = MAX_SUPPLY - 1;
         uint256 cost = prefinaleAmount * MINT_PRICE;
@@ -220,7 +210,6 @@ contract ConspiraPuppetsTest is Test {
         
         conspirapuppets.mint(owner, prefinaleAmount);
         
-        // Verify pre-finale state
         assertEq(conspirapuppets.totalSupply(), prefinaleAmount, "Should have 3332 NFTs");
         assertFalse(conspirapuppets.mintCompleted(), "Mint should not be completed yet");
         assertFalse(tinfoilToken.tradingEnabled(), "Trading should still be disabled");
@@ -230,24 +219,20 @@ contract ConspiraPuppetsTest is Test {
         console.log("  Contract ETH balance:", address(conspirapuppets).balance / 1e18, "ETH");
         console.log("  Trading enabled:", tinfoilToken.tradingEnabled());
         
-        // Now mint the final NFT (should trigger completion)
         vm.deal(address(conspirapuppets), address(conspirapuppets).balance + MINT_PRICE);
         
         console.log("MINTING FINAL NFT - TRIGGERING EXPLOSIVE FINALE");
         conspirapuppets.mint(user1, 1);
         
-        // Verify completion
         assertEq(conspirapuppets.totalSupply(), MAX_SUPPLY, "Should have all 3333 NFTs");
         assertTrue(conspirapuppets.mintCompleted(), "Mint should be completed");
         assertTrue(tinfoilToken.tradingEnabled(), "Trading should be enabled");
         
-        // Check operational funds are available for withdrawal
         (, , , , , uint256 operationalFunds, bool lpCreated) = conspirapuppets.getMintStatus();
         uint256 expectedOperationalFunds = (MAX_SUPPLY * MINT_PRICE) / 2;
         assertEq(operationalFunds, expectedOperationalFunds, "Operational funds should be available");
         assertTrue(lpCreated, "LP should be created");
         
-        // Withdraw operational funds
         conspirapuppets.withdrawOperationalFunds();
         uint256 ownerBalanceAfter = owner.balance;
         uint256 actualWithdrawn = ownerBalanceAfter - initialOwnerBalance;
@@ -259,8 +244,7 @@ contract ConspiraPuppetsTest is Test {
         console.log("  Operational funds withdrawn:", actualWithdrawn / 1e18, "ETH");
         console.log("  LP created:", lpCreated);
         
-        // Check LP creation
-        address lpToken = mockAerodrome.getPair(address(tinfoilToken), address(0));
+        address lpToken = mockFactory.getPair(address(tinfoilToken), conspirapuppets.WETH());
         uint256 lpBalance = MockLPToken(lpToken).balanceOf(0x000000000000000000000000000000000000dEaD);
         console.log("  LP tokens burned:", lpBalance / 1e18);
         
@@ -272,29 +256,25 @@ contract ConspiraPuppetsTest is Test {
     function testTradingAfterCompletion() public {
         console.log("Testing Trading After Completion");
         
-        // First complete the mint
         vm.startPrank(owner);
         uint256 cost = MAX_SUPPLY * MINT_PRICE;
         vm.deal(address(conspirapuppets), cost);
         conspirapuppets.mint(owner, MAX_SUPPLY);
         vm.stopPrank();
         
-        // Verify trading is enabled
         assertTrue(tinfoilToken.tradingEnabled(), "Trading should be enabled");
         
-        // Test token transfers
         vm.startPrank(owner);
         
-        uint256 transferAmount = 50_000 * 10**18; // 50k tokens
+        uint256 transferAmount = 50_000 * 10**18;
         tinfoilToken.transfer(user1, transferAmount);
         
         assertEq(tinfoilToken.balanceOf(user1), transferAmount, "Transfer should work");
         
         vm.stopPrank();
         
-        // Test user-to-user transfer
         vm.startPrank(user1);
-        uint256 secondTransfer = 10_000 * 10**18; // 10k tokens
+        uint256 secondTransfer = 10_000 * 10**18;
         tinfoilToken.transfer(user2, secondTransfer);
         
         assertEq(tinfoilToken.balanceOf(user2), secondTransfer, "User transfer should work");
@@ -308,18 +288,15 @@ contract ConspiraPuppetsTest is Test {
     function testTokenBurning() public {
         console.log("Testing Token Burning");
         
-        // Complete mint first
         vm.startPrank(owner);
         uint256 cost = MAX_SUPPLY * MINT_PRICE;
         vm.deal(address(conspirapuppets), cost);
         conspirapuppets.mint(owner, MAX_SUPPLY);
         
-        // Transfer some tokens to user1
-        uint256 burnAmount = 100_000 * 10**18; // 100k tokens
+        uint256 burnAmount = 100_000 * 10**18;
         tinfoilToken.transfer(user1, burnAmount);
         vm.stopPrank();
         
-        // Test burning
         vm.startPrank(user1);
         uint256 initialSupply = tinfoilToken.totalSupply();
         uint256 initialBalance = tinfoilToken.balanceOf(user1);
@@ -338,20 +315,16 @@ contract ConspiraPuppetsTest is Test {
     function testWithdrawalEdgeCases() public {
         console.log("Testing Withdrawal Edge Cases");
         
-        // Test withdrawal before mint completion should fail
         vm.startPrank(owner);
         vm.expectRevert("Mint not completed yet");
         conspirapuppets.withdrawOperationalFunds();
         
-        // Complete mint
         uint256 cost = MAX_SUPPLY * MINT_PRICE;
         vm.deal(address(conspirapuppets), cost);
         conspirapuppets.mint(owner, MAX_SUPPLY);
         
-        // Withdraw once
         conspirapuppets.withdrawOperationalFunds();
         
-        // Try to withdraw again should fail
         vm.expectRevert("No operational funds available");
         conspirapuppets.withdrawOperationalFunds();
         
@@ -365,22 +338,18 @@ contract ConspiraPuppetsTest is Test {
         
         vm.startPrank(owner);
         
-        // Try emergency withdraw before mint completion should fail
         vm.expectRevert("Can only withdraw after mint completion");
         conspirapuppets.emergencyWithdraw();
         
-        // Complete mint
         uint256 cost = MAX_SUPPLY * MINT_PRICE;
         vm.deal(address(conspirapuppets), cost);
         conspirapuppets.mint(owner, MAX_SUPPLY);
         
-        // Send some extra ETH to contract for testing
         vm.deal(address(conspirapuppets), address(conspirapuppets).balance + 1 ether);
         
         uint256 initialBalance = owner.balance;
         uint256 contractBalance = address(conspirapuppets).balance;
         
-        // Emergency withdraw should get all ETH
         conspirapuppets.emergencyWithdraw();
         
         uint256 finalBalance = owner.balance;
@@ -397,22 +366,17 @@ contract ConspiraPuppetsTest is Test {
         
         vm.startPrank(owner);
         
-        // Mint some tokens first
         vm.deal(address(conspirapuppets), MINT_PRICE);
         conspirapuppets.mint(user1, 1);
         
-        // Pause the token contract
         tinfoilToken.pause();
         
-        // Try to mint while paused (should fail)
         vm.deal(address(conspirapuppets), address(conspirapuppets).balance + MINT_PRICE);
         vm.expectRevert("Pausable: paused");
         conspirapuppets.mint(user2, 1);
         
-        // Unpause
         tinfoilToken.unpause();
         
-        // Should work again
         conspirapuppets.mint(user2, 1);
         assertEq(conspirapuppets.balanceOf(user2), 1, "Mint should work after unpause");
         
@@ -424,16 +388,13 @@ contract ConspiraPuppetsTest is Test {
     function testOwnershipRestrictedFunctions() public {
         console.log("Testing Ownership Restricted Functions");
         
-        // Test non-owner cannot pause
         vm.startPrank(user1);
         vm.expectRevert("Ownable: caller is not the owner");
         tinfoilToken.pause();
         
-        // Test non-owner cannot withdraw (using custom error selector)
         vm.expectRevert();
         conspirapuppets.withdrawOperationalFunds();
         
-        // Test non-owner cannot emergency withdraw (using custom error selector)
         vm.expectRevert();
         conspirapuppets.emergencyWithdraw();
         
@@ -449,7 +410,6 @@ contract ConspiraPuppetsTest is Test {
         console.log("FULL CONSPIRAPUPPETS SIMULATION");
         console.log("============================================================");
         
-        // Phase 1: Early minting
         console.log("Phase 1: Early Minting");
         
         vm.startPrank(user1);
@@ -457,13 +417,11 @@ contract ConspiraPuppetsTest is Test {
         conspirapuppets.mint(user1, 5);
         console.log("User1 minted 5 NFTs, received", tinfoilToken.balanceOf(user1) / 1e18, "tokens");
         
-        // Try to trade (should fail)
         vm.expectRevert("Trading not enabled yet - wait for mint completion");
         tinfoilToken.transfer(user2, 1000);
         console.log("Trading correctly blocked");
         vm.stopPrank();
         
-        // Phase 2: More minting
         console.log("Phase 2: Progressive Minting");
         
         vm.startPrank(user2);
@@ -476,7 +434,6 @@ contract ConspiraPuppetsTest is Test {
         console.log("Current supply:", currentSupply, "/ 3333");
         console.log("Progress:", (currentSupply * 100) / MAX_SUPPLY, "%");
         
-        // Phase 3: Approach completion
         console.log("Phase 3: Approaching Completion");
         
         vm.startPrank(owner);
@@ -491,21 +448,17 @@ contract ConspiraPuppetsTest is Test {
         console.log("Contract ETH before finale:", contractBalanceBefore / 1e18, "ETH");
         console.log("Owner ETH before finale:", ownerBalanceBefore / 1e18, "ETH");
         
-        // THE EXPLOSIVE FINALE
         conspirapuppets.mint(owner, remaining);
         
         console.log("EXPLOSIVE FINALE COMPLETED!");
         console.log("============================================================");
         
-        // Verify finale results
         assertTrue(conspirapuppets.mintCompleted(), "Mint completed");
         assertTrue(tinfoilToken.tradingEnabled(), "Trading enabled");
         
-        // Check LP creation status
         (, , , , , , bool lpCreated) = conspirapuppets.getMintStatus();
         assertTrue(lpCreated, "LP should be created");
         
-        // Withdraw operational funds
         conspirapuppets.withdrawOperationalFunds();
         
         uint256 ownerBalanceAfter = owner.balance;
@@ -515,12 +468,10 @@ contract ConspiraPuppetsTest is Test {
         console.log("Trading enabled:", tinfoilToken.tradingEnabled());
         console.log("LP created:", lpCreated);
         console.log("Operational funds withdrawn:", operationalFunds / 1e18, "ETH");
-        console.log("LP created and burned");
         
-        // Phase 4: Test trading
         console.log("Phase 4: Post-Completion Trading");
         
-        uint256 transferAmount = 500_000 * 10**18; // 500k tokens
+        uint256 transferAmount = 500_000 * 10**18;
         tinfoilToken.transfer(user3, transferAmount);
         console.log("Transferred", transferAmount / 1e18, "tokens to user3");
         
@@ -528,7 +479,6 @@ contract ConspiraPuppetsTest is Test {
         
         vm.stopPrank();
         
-        // Final statistics
         console.log("FINAL STATISTICS");
         console.log("============================================================");
         console.log("Total NFTs minted:", conspirapuppets.totalSupply());
@@ -544,7 +494,6 @@ contract ConspiraPuppetsTest is Test {
         console.log("FULL INTEGRATION TEST PASSED!");
     }
     
-    // Helper function to simulate minting
     function mint(address to, uint256 quantity) external {
         for (uint256 i = 0; i < quantity; i++) {
             conspirapuppets.mint(to, 1);
