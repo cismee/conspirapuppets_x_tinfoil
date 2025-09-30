@@ -28,7 +28,6 @@ interface IAerodromeFactory {
 }
 
 contract Conspirapuppets is ERC721SeaDrop {
-    // Constants
     uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant TOKENS_PER_NFT = 499_549 * 10**18;
     uint256 public constant TOTAL_TOKEN_SUPPLY = 3_330_000_000 * 10**18;
@@ -36,22 +35,18 @@ contract Conspirapuppets is ERC721SeaDrop {
     uint256 public constant NFT_TOKEN_ALLOCATION = 1_664_996_817 * 10**18;
     uint256 public constant TOKEN_REMAINDER = 3_183 * 10**18;
     
-    // Base network addresses
     address public constant WETH = 0x4200000000000000000000000000000000000006;
     address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
     
-    // State variables
     bool public mintCompleted = false;
     bool public lpCreated = false;
     uint256 public operationalFunds = 0;
     uint256 public totalEthReceived = 0;
     
-    // Addresses
     address public immutable tinfoilToken;
     address public immutable aerodromeRouter;
     address public immutable aerodromeFactory;
     
-    // Events
     event MintCompleted(uint256 totalSupply);
     event ETHReceived(address indexed from, uint256 amount, uint256 totalReceived);
     event FundsAllocated(uint256 lpAmount, uint256 operationalAmount);
@@ -316,7 +311,6 @@ contract Conspirapuppets is ERC721SeaDrop {
 
     /**
      * @dev TEST HELPER - DELETE BEFORE MAINNET DEPLOYMENT
-     * Only for testing - allows owner to mint without SeaDrop
      */
     function mintForTesting(address to, uint256 quantity) external onlyOwner {
         require(totalSupply() + quantity <= MAX_SUPPLY, "Exceeds max supply");
