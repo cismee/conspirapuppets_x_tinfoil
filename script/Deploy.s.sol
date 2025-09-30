@@ -23,11 +23,11 @@ contract DeployScript is Script {
         
         vm.startBroadcast(deployerPrivateKey);
         
-        console.log("\nStep 1: Deploying TinfoilToken...");
+        console.log("\nStep 1: Deploying TinfoilToken");
         TinfoilToken tinfoilToken = new TinfoilToken();
         console.log("TinfoilToken deployed at:", address(tinfoilToken));
         
-        console.log("\nStep 2: Deploying Conspirapuppets...");
+        console.log("\nStep 2: Deploying Conspirapuppets");
         address[] memory allowedSeaDrop = new address[](1);
         allowedSeaDrop[0] = SEADROP_ADDRESS;
         
@@ -41,11 +41,11 @@ contract DeployScript is Script {
         );
         console.log("Conspirapuppets deployed at:", address(conspirapuppets));
         
-        console.log("\nStep 3: Linking contracts...");
+        console.log("\nStep 3: Linking contracts");
         tinfoilToken.setNFTContract(address(conspirapuppets));
         console.log("NFT contract linked to TinfoilToken");
         
-        console.log("\nStep 4: Configuring Seadrop...");
+        console.log("\nStep 4: Configuring Seadrop");
         uint48 startTime = uint48(block.timestamp);
         uint48 endTime = uint48(startTime + 30 days);
         
@@ -61,7 +61,7 @@ contract DeployScript is Script {
         conspirapuppets.configurePublicDrop(SEADROP_ADDRESS, publicDrop);
         console.log("Public drop configured");
         
-        console.log("\nStep 5: Setting up fee recipients...");
+        console.log("\nStep 5: Setting up fee recipients");
         conspirapuppets.updateAllowedFeeRecipient(SEADROP_ADDRESS, deployer, true);
         console.log("Fee recipient configured");
         
