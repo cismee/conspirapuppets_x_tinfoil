@@ -110,6 +110,10 @@ contract DeployScript is Script {
         
         console.log("\nVerification Commands:");
         console.log("forge verify-contract", address(tinfoilToken), "src/TinfoilToken.sol:TinfoilToken --chain base --etherscan-api-key $BASESCAN_API_KEY");
-        console.log("forge verify-contract", address(conspirapuppets), "src/Conspirapuppets.sol:Conspirapuppets --chain base --etherscan-api-key $BASESCAN_API_KEY --constructor-args $(cast abi-encode 'constructor(string,string,address[],address,address,address)' 'Conspirapuppets' 'CPUP' '[0x00005EA00Ac477B1030CE78506496e8C2dE24bf5]'", address(tinfoilToken), AERODROME_ROUTER, AERODROME_FACTORY, ")");
+        console.log("\nTo verify TinfoilToken:");
+        console.log("forge verify-contract <ADDRESS> src/TinfoilToken.sol:TinfoilToken --chain base --etherscan-api-key $BASESCAN_API_KEY");
+        console.log("\nTo verify Conspirapuppets:");
+        console.log("forge verify-contract <ADDRESS> src/Conspirapuppets.sol:Conspirapuppets --chain base --etherscan-api-key $BASESCAN_API_KEY");
+        console.log("Note: Check deployment logs above for exact addresses and constructor args");
     }
 }

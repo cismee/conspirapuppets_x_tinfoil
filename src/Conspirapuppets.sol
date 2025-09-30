@@ -33,8 +33,6 @@ contract Conspirapuppets is ERC721SeaDrop {
     uint256 public constant TOKENS_PER_NFT = 499_549 * 10**18;
     uint256 public constant TOTAL_TOKEN_SUPPLY = 3_330_000_000 * 10**18;
     uint256 public constant LP_TOKEN_AMOUNT = 1_665_000_000 * 10**18;
-    // Actual allocation from mints: 3333 * 499_549 = 1,664,996,817 tokens
-    // Remainder to match 1.665B: 3,183 tokens (will be minted to treasury)
     uint256 public constant NFT_TOKEN_ALLOCATION = 1_664_996_817 * 10**18;
     uint256 public constant TOKEN_REMAINDER = 3_183 * 10**18;
     
@@ -78,10 +76,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         aerodromeFactory = _aerodromeFactory;
     }
 
-    /**
-     * @dev Override _beforeTokenTransfers to add automatic token distribution
-     * This is called by SeaDrop during minting
-     */
     function _beforeTokenTransfers(
         address from,
         address to,
@@ -90,39 +84,27 @@ contract Conspirapuppets is ERC721SeaDrop {
     ) internal virtual override {
         super._beforeTokenTransfers(from, to, startTokenId, quantity);
         
-        // Only distribute tokens on mint (from == address(0))
         if (from == address(0) && to != address(0)) {
             uint256 tokensToMint = quantity * TOKENS_PER_NFT;
             ITinfoilToken(tinfoilToken).mint(to, tokensToMint);
             
             emit TokensDistributed(to, tokensToMint);
             
-            // Check if this mint completes the collection
             if (totalSupply() + quantity >= MAX_SUPPLY) {
                 _completeMint();
             }
         }
     }
 
-    /**
-     * @dev Start token ID at 1
-     */
     function _startTokenId() internal pure override returns (uint256) {
         return 1;
     }
 
-    /**
-     * @dev Complete mint process when collection sells out or manually triggered
-     * Can be called by owner if mint doesn't sell out naturally
-     */
     function completeMint() external onlyOwner {
         require(!mintCompleted, "Mint already completed");
         _completeMint();
     }
 
-    /**
-     * @dev Internal function to complete the mint
-     */
     function _completeMint() internal {
         if (mintCompleted) return;
         
@@ -136,29 +118,27 @@ contract Conspirapuppets is ERC721SeaDrop {
         
         emit FundsAllocated(lpEthAmount, operationalFunds);
         
-        // Mint the remainder tokens to make exact 1.665B allocation
+        // Mint remainder to reach exact 1.665B
         if (TOKEN_REMAINDER > 0) {
             ITinfoilToken(tinfoilToken).mint(owner(), TOKEN_REMAINDER);
             emit RemainderMinted(owner(), TOKEN_REMAINDER);
         }
         
-        // Create LP first, THEN enable trading (critical order)
+        // Create LP
         _createAndBurnLP(lpEthAmount);
         
-        // Only enable trading after LP is created and burned
+        // Enable trading ONLY if LP succeeded
         if (lpCreated) {
             ITinfoilToken(tinfoilToken).enableTrading();
             emit TradingEnabled();
+        } else {
+            emit LPCreationFailed("LP creation failed during mint completion");
         }
         
         emit MintCompleted(totalSupply());
     }
 
-    /**
-     * @dev Create liquidity pool and burn LP tokens permanently
-     * Protected by nonReentrant
-     */
-    function _createAndBurnLP(uint256 ethAmount) internal nonReentrant {
+    function _createAndBurnLP(uint256 ethAmount) internal {
         if (ethAmount == 0) return;
         if (lpCreated) return;
         
@@ -168,32 +148,32 @@ contract Conspirapuppets is ERC721SeaDrop {
         // Approve router
         IERC20(tinfoilToken).approve(aerodromeRouter, LP_TOKEN_AMOUNT);
         
-        // Calculate slippage protection (5%)
+        // Calculate slippage (5%)
         uint256 minTokens = LP_TOKEN_AMOUNT * 95 / 100;
         uint256 minETH = ethAmount * 95 / 100;
         
-        // Try to create LP
+        // Get LP address first for event
+        address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
+        
         try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount}(
             tinfoilToken,
-            false, // volatile pair
+            false,
             LP_TOKEN_AMOUNT,
             minTokens,
             minETH,
             address(this),
             block.timestamp + 300
-        ) returns (uint256 amountToken, uint256 amountETH, uint256 liquidity) {
+        ) returns (uint256 amountToken, uint256 amountETH, uint256) {
             
-            emit LiquidityCreated(address(this), amountETH, amountToken);
-            
-            // Get LP token address from factory (note the 'false' parameter for volatile pair)
-            address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(
-                tinfoilToken, 
-                WETH, 
-                false // volatile
-            );
+            // Emit with correct LP token address
+            if (lpTokenAddress == address(0)) {
+                lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
+            }
             require(lpTokenAddress != address(0), "LP pair not found");
             
-            // Burn ALL LP tokens
+            emit LiquidityCreated(lpTokenAddress, amountETH, amountToken);
+            
+            // Burn LP tokens
             uint256 lpBalance = IERC20(lpTokenAddress).balanceOf(address(this));
             require(lpBalance > 0, "No LP tokens to burn");
             
@@ -209,9 +189,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         }
     }
 
-    /**
-     * @dev Configure public drop parameters
-     */
     function configurePublicDrop(
         address seaDropImpl,
         PublicDrop calldata publicDrop
@@ -219,10 +196,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         this.updatePublicDrop(seaDropImpl, publicDrop);
     }
 
-    /**
-     * @dev Manual LP creation retry - callable if automatic creation failed
-     * Protected by nonReentrant
-     */
     function retryLPCreation() external onlyOwner nonReentrant {
         require(mintCompleted, "Mint not completed yet");
         require(!lpCreated, "LP already created");
@@ -231,17 +204,12 @@ contract Conspirapuppets is ERC721SeaDrop {
         uint256 lpEthAmount = address(this).balance - operationalFunds;
         _createAndBurnLP(lpEthAmount);
         
-        // Enable trading if LP creation succeeded
         if (lpCreated) {
             ITinfoilToken(tinfoilToken).enableTrading();
             emit TradingEnabled();
         }
     }
     
-    /**
-     * @dev Emergency LP creation with custom parameters
-     * Protected by nonReentrant
-     */
     function emergencyLPCreation(
         uint256 tokenAmount,
         uint256 ethAmount,
@@ -251,14 +219,14 @@ contract Conspirapuppets is ERC721SeaDrop {
         require(!lpCreated, "LP already created");
         require(tokenAmount <= IERC20(tinfoilToken).balanceOf(address(this)), "Insufficient token balance");
         require(ethAmount <= address(this).balance - operationalFunds, "Insufficient ETH balance");
-        require(slippageBps <= 2000, "Slippage too high"); // Max 20%
+        require(slippageBps <= 2000, "Slippage too high");
         
-        // Approve tokens
         IERC20(tinfoilToken).approve(aerodromeRouter, tokenAmount);
         
-        // Calculate slippage amounts
         uint256 minTokens = tokenAmount * (10000 - slippageBps) / 10000;
         uint256 minEth = ethAmount * (10000 - slippageBps) / 10000;
+        
+        address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
         
         try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount}(
             tinfoilToken,
@@ -270,11 +238,12 @@ contract Conspirapuppets is ERC721SeaDrop {
             block.timestamp + 300
         ) returns (uint256 amountToken, uint256 amountETH, uint256) {
             
-            emit LiquidityCreated(address(this), amountETH, amountToken);
-            
-            // Get and burn LP tokens
-            address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
+            if (lpTokenAddress == address(0)) {
+                lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
+            }
             require(lpTokenAddress != address(0), "LP pair not found");
+            
+            emit LiquidityCreated(lpTokenAddress, amountETH, amountToken);
             
             uint256 lpBalance = IERC20(lpTokenAddress).balanceOf(address(this));
             if (lpBalance > 0) {
@@ -282,7 +251,6 @@ contract Conspirapuppets is ERC721SeaDrop {
                 emit LPTokensBurned(lpTokenAddress, lpBalance);
                 lpCreated = true;
                 
-                // Enable trading
                 ITinfoilToken(tinfoilToken).enableTrading();
                 emit TradingEnabled();
             }
@@ -294,9 +262,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         }
     }
 
-    /**
-     * @dev Withdraw operational funds
-     */
     function withdrawOperationalFunds() external onlyOwner {
         require(mintCompleted, "Mint not completed yet");
         require(operationalFunds > 0, "No operational funds available");
@@ -310,9 +275,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         emit OperationalFundsWithdrawn(owner(), amount);
     }
 
-    /**
-     * @dev Emergency withdraw (only after mint completion)
-     */
     function emergencyWithdraw() external onlyOwner {
         require(mintCompleted, "Can only withdraw after mint completion");
         uint256 balance = address(this).balance;
@@ -324,10 +286,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         }
     }
 
-    /**
-     * @dev Owner-only airdrop function (does not bypass SeaDrop for sales)
-     * Counts toward MAX_SUPPLY
-     */
     function airdrop(address[] calldata recipients, uint256[] calldata quantities) external onlyOwner {
         require(recipients.length == quantities.length, "Length mismatch");
         require(!mintCompleted, "Mint already completed");
@@ -344,9 +302,6 @@ contract Conspirapuppets is ERC721SeaDrop {
         }
     }
 
-    /**
-     * @dev Get current mint status
-     */
     function getMintStatus() external view returns (
         uint256 _totalSupply,
         uint256 _maxSupply,
@@ -367,27 +322,20 @@ contract Conspirapuppets is ERC721SeaDrop {
         );
     }
 
-    /**
-     * @dev Receive ETH from SeaDrop sales
-     */
     receive() external payable {
         totalEthReceived += msg.value;
         emit ETHReceived(msg.sender, msg.value, totalEthReceived);
     }
 
-    /**
-     * @dev Support interface override
-     */
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
     /**
-    * @dev Test helper - REMOVE before production deployment
-    * Only owner can call this for testing purposes
-    */
+     * @dev Test helper - REMOVE before production deployment
+     */
     function mintForTesting(address to, uint256 quantity) external onlyOwner {
         require(totalSupply() + quantity <= MAX_SUPPLY, "Exceeds max supply");
         _mint(to, quantity);
-}
+    }
 }
