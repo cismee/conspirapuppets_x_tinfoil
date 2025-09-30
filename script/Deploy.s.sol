@@ -108,12 +108,26 @@ contract DeployScript is Script {
         console.log("  - Test on Base Sepolia first");
         console.log("  - Verify all contract addresses");
         
-        console.log("\nVerification Commands:");
-        console.log("forge verify-contract", address(tinfoilToken), "src/TinfoilToken.sol:TinfoilToken --chain base --etherscan-api-key $BASESCAN_API_KEY");
-        console.log("\nTo verify TinfoilToken:");
-        console.log("forge verify-contract <ADDRESS> src/TinfoilToken.sol:TinfoilToken --chain base --etherscan-api-key $BASESCAN_API_KEY");
-        console.log("\nTo verify Conspirapuppets:");
-        console.log("forge verify-contract <ADDRESS> src/Conspirapuppets.sol:Conspirapuppets --chain base --etherscan-api-key $BASESCAN_API_KEY");
-        console.log("Note: Check deployment logs above for exact addresses and constructor args");
+        console.log("\n=================================================================");
+        console.log("VERIFICATION");
+        console.log("=================================================================");
+        console.log("Save these addresses for verification:");
+        console.log("");
+        console.log("TinfoilToken:");
+        console.log(address(tinfoilToken));
+        console.log("");
+        console.log("Conspirapuppets:");
+        console.log(address(conspirapuppets));
+        console.log("");
+        console.log("To verify TinfoilToken:");
+        console.log("  forge verify-contract <ADDRESS>");
+        console.log("  src/TinfoilToken.sol:TinfoilToken");
+        console.log("  --chain base --etherscan-api-key $BASESCAN_API_KEY");
+        console.log("");
+        console.log("To verify Conspirapuppets:");
+        console.log("  forge verify-contract <ADDRESS>");
+        console.log("  src/Conspirapuppets.sol:Conspirapuppets");
+        console.log("  --chain base --etherscan-api-key $BASESCAN_API_KEY");
+        console.log("  --constructor-args <ENCODED_ARGS>");
     }
 }
