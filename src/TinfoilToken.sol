@@ -3,9 +3,8 @@ pragma solidity ^0.8.17;
 
 import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
-import "openzeppelin-contracts/security/Pausable.sol";
 
-contract TinfoilToken is ERC20, Ownable, Pausable {
+contract TinfoilToken is ERC20, Ownable {
     uint256 public constant MAX_SUPPLY = 3_330_000_000 * 10**18;
     
     address public nftContract;
@@ -31,7 +30,7 @@ contract TinfoilToken is ERC20, Ownable, Pausable {
         emit NFTContractSet(_nftContract);
     }
 
-    function mint(address to, uint256 amount) external onlyNFTContract whenNotPaused {
+    function mint(address to, uint256 amount) external onlyNFTContract {
         require(to != address(0), "Cannot mint to zero address");
         require(totalSupply() + amount <= MAX_SUPPLY, "Exceeds max supply");
         _mint(to, amount);
@@ -53,20 +52,12 @@ contract TinfoilToken is ERC20, Ownable, Pausable {
         emit TokensBurned(amount);
     }
 
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
-    function transfer(address to, uint256 amount) public virtual override whenNotPaused returns (bool) {
+    function transfer(address to, uint256 amount) public virtual override returns (bool) {
         require(tradingEnabled, "Trading not enabled yet - wait for mint completion");
         return super.transfer(to, amount);
     }
 
-    function transferFrom(address from, address to, uint256 amount) public virtual override whenNotPaused returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
         require(tradingEnabled, "Trading not enabled yet - wait for mint completion");
         return super.transferFrom(from, to, amount);
     }

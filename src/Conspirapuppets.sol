@@ -5,6 +5,7 @@ import {ERC721SeaDropStructsErrorsAndEvents} from "seadrop/src/lib/ERC721SeaDrop
 import {ERC721SeaDrop} from "seadrop/src/ERC721SeaDrop.sol";
 import {PublicDrop} from "seadrop/src/lib/ERC721SeaDropStructsErrorsAndEvents.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ITinfoilToken {
     function mint(address to, uint256 amount) external;
@@ -28,6 +29,8 @@ interface IAerodromeFactory {
 }
 
 contract Conspirapuppets is ERC721SeaDrop {
+    using SafeERC20 for IERC20;
+    
     uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant TOKENS_PER_NFT = 499_549 * 10**18;
     uint256 public constant TOTAL_TOKEN_SUPPLY = 3_330_000_000 * 10**18;
@@ -42,6 +45,8 @@ contract Conspirapuppets is ERC721SeaDrop {
     bool public lpCreated = false;
     uint256 public operationalFunds = 0;
     uint256 public totalEthReceived = 0;
+    
+    bool private _mintLock;
     
     address public immutable tinfoilToken;
     address public immutable aerodromeRouter;
@@ -95,14 +100,16 @@ contract Conspirapuppets is ERC721SeaDrop {
         return 1;
     }
 
-    function completeMint() external onlyOwner {
+    function completeMint() external onlyOwner nonReentrant {
         require(!mintCompleted, "Mint already completed");
         _completeMint();
     }
 
     function _completeMint() internal {
+        require(!_mintLock, "Reentrancy");
         if (mintCompleted) return;
         
+        _mintLock = true;
         mintCompleted = true;
         
         uint256 totalEth = address(this).balance;
@@ -128,18 +135,28 @@ contract Conspirapuppets is ERC721SeaDrop {
         }
         
         emit MintCompleted(totalSupply());
+        
+        _mintLock = false;
     }
 
     function _createAndBurnLP(uint256 ethAmount) internal {
         if (ethAmount == 0) return;
         if (lpCreated) return;
         
+        // Verify pair doesn't already exist
+        address existingPair = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
+        if (existingPair != address(0)) {
+            emit LPCreationFailed("Pair already exists");
+            return;
+        }
+        
         ITinfoilToken(tinfoilToken).mint(address(this), LP_TOKEN_AMOUNT);
         
         IERC20(tinfoilToken).approve(aerodromeRouter, LP_TOKEN_AMOUNT);
         
-        uint256 minTokens = LP_TOKEN_AMOUNT * 95 / 100;
-        uint256 minETH = ethAmount * 95 / 100;
+        // Increased slippage tolerance to 10% for initial LP creation
+        uint256 minTokens = LP_TOKEN_AMOUNT * 90 / 100;
+        uint256 minETH = ethAmount * 90 / 100;
         
         try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount}(
             tinfoilToken,
@@ -159,7 +176,8 @@ contract Conspirapuppets is ERC721SeaDrop {
             uint256 lpBalance = IERC20(lpTokenAddress).balanceOf(address(this));
             require(lpBalance > 0, "No LP tokens to burn");
             
-            IERC20(lpTokenAddress).transfer(BURN_ADDRESS, lpBalance);
+            // Use SafeERC20 for LP token transfer
+            IERC20(lpTokenAddress).safeTransfer(BURN_ADDRESS, lpBalance);
             
             emit LPTokensBurned(lpTokenAddress, lpBalance);
             lpCreated = true;
@@ -225,7 +243,7 @@ contract Conspirapuppets is ERC721SeaDrop {
             
             uint256 lpBalance = IERC20(lpTokenAddress).balanceOf(address(this));
             if (lpBalance > 0) {
-                IERC20(lpTokenAddress).transfer(BURN_ADDRESS, lpBalance);
+                IERC20(lpTokenAddress).safeTransfer(BURN_ADDRESS, lpBalance);
                 emit LPTokensBurned(lpTokenAddress, lpBalance);
                 lpCreated = true;
                 
@@ -307,13 +325,5 @@ contract Conspirapuppets is ERC721SeaDrop {
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return super.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev TEST HELPER - DELETE BEFORE MAINNET DEPLOYMENT
-     */
-    function mintForTesting(address to, uint256 quantity) external onlyOwner {
-        require(totalSupply() + quantity <= MAX_SUPPLY, "Exceeds max supply");
-        _mint(to, quantity);
     }
 }
