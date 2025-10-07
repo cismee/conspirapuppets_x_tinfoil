@@ -1,0 +1,60 @@
+🎯 Complete Operational Playbook
+Scenario 1: RPC Hiccup During Deployment
+bash# If deployment fails mid-way
+# 1. Check what was deployed
+cast code $TINFOIL_TOKEN_ADDRESS --rpc-url $BASE_RPC_URL
+cast code $CONSPIRAPUPPETS_ADDRESS --rpc-url $BASE_RPC_URL
+
+# 2. If partial deployment, start fresh with new addresses
+# 3. If RPC is flaky, switch to a different RPC:
+export BASE_RPC_URL="https://base.llamarpc.com"
+# Or: https://base-mainnet.public.blastapi.io
+# Or: https://mainnet.base.org
+Scenario 2: LP Creation Fails Due to Gas
+bash# Use the retry script
+forge script script/RetryLP.s.sol \
+  --rpc-url $BASE_RPC_URL \
+  --broadcast \
+  --private-key $PRIVATE_KEY
+
+# If that fails, use emergency recovery diagnostic
+forge script script/EmergencyRecover.s.sol \
+  --rpc-url $BASE_RPC_URL
+Scenario 3: Sell-out Race Condition
+bash# Check if completion was triggered
+cast call $CONSPIRAPUPPETS_ADDRESS \
+  "mintCompleted()(bool)" \
+  --rpc-url $BASE_RPC_URL
+
+# If false despite sell-out, manually trigger
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  "completeMint()" \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL
+Scenario 4: Timing Edge Case (L2 Timestamp)
+bash# Check timing status
+cast call $CONSPIRAPUPPETS_ADDRESS \
+  "isTimingEdgeCase()(bool,string)" \
+  --rpc-url $BASE_RPC_URL
+
+# If stuck, force reschedule
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  "forceScheduleLPCreation()" \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL
+Scenario 5: Everything Failed - Nuclear Option
+bash# 1. Run diagnostics
+forge script script/EmergencyRecover.s.sol --rpc-url $BASE_RPC_URL
+
+# 2. Emergency withdraw ALL funds
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  "emergencyWithdraw()" \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL
+
+# 3. Manually create LP on Aerodrome UI
+# 4. Enable trading manually
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  "enableTradingManual()" \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL

@@ -584,6 +584,48 @@ contract Conspirapuppets is ERC721SeaDrop {
         );
     }
 
+    // ADDED: TIMING SAFEGUARD - Check if we're in a timing edge case
+    function isTimingEdgeCase() public view returns (bool isEdgeCase, string memory reason) {
+        if (!mintCompleted) {
+            return (false, "Mint not completed");
+        }
+        
+        if (!lpCreationScheduled) {
+            return (true, "LP creation not scheduled after mint completion");
+        }
+        
+        if (lpCreated) {
+            return (false, "LP already created");
+        }
+        
+        // Check if we're very close to LP creation timestamp
+        if (lpCreationTimestamp > 0 && block.timestamp < lpCreationTimestamp) {
+            uint256 timeLeft = lpCreationTimestamp - block.timestamp;
+            if (timeLeft < 30) {
+                return (true, "Very close to LP creation time - wait a bit");
+            }
+        }
+        
+        // Check if contract has enough ETH
+        if (address(this).balance <= operationalFunds) {
+            return (true, "Insufficient ETH for LP");
+        }
+        
+        return (false, "Ready for LP creation");
+    }
+
+    // ADDED: TIMING SAFEGUARD - Manual trigger if timing got weird
+    function forceScheduleLPCreation() external onlyOwner {
+        require(mintCompleted, "Mint not completed");
+        require(!lpCreationScheduled, "Already scheduled");
+        require(!lpCreated, "LP already created");
+        
+        lpCreationTimestamp = block.timestamp + LP_CREATION_DELAY;
+        lpCreationScheduled = true;
+        
+        emit LPCreationScheduled(lpCreationTimestamp);
+    }
+
     receive() external payable {
         totalEthReceived += msg.value;
         emit ETHReceived(msg.sender, msg.value, totalEthReceived);

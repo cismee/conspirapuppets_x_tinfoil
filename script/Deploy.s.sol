@@ -21,44 +21,96 @@ contract DeployScript is Script {
         console.log("=================================================================");
         console.log("Deployer:", deployer);
         console.log("Current Balance:", deployer.balance / 1e18, "ETH");
+        console.log("Block:", block.number);
         console.log("Timestamp:", block.timestamp);
         
         // =========================================================================
-        // PRE-FLIGHT: Funding Check
+        // PRE-FLIGHT: Enhanced Funding Check with Gas Price Discovery
         // =========================================================================
         console.log("\n=================================================================");
         console.log("[PRE-FLIGHT] FUNDING ANALYSIS");
         console.log("=================================================================");
         
-        // Estimate deployment costs
-        uint256 estimatedDeployGas = 15000000; // ~15M gas for full deployment
-        uint256 gasPrice = tx.gasprice > 0 ? tx.gasprice : 0.001 gwei;
-        uint256 estimatedGasCost = estimatedDeployGas * gasPrice;
+        // Try to get accurate gas price from RPC
+        uint256 gasPrice;
+        bool gasPriceFromRPC = false;
         
-        // Add buffer for LP creation later (owner will need to fund this)
-        uint256 lpCreationBuffer = 0.1 ether; // Extra for LP transaction gas
-        uint256 recommendedMinimum = estimatedGasCost + lpCreationBuffer;
+        try vm.parseBytes(vm.toString(abi.encode(block.basefee))) returns (bytes memory) {
+            // Use block.basefee as a proxy for current gas price on Base L2
+            gasPrice = block.basefee > 0 ? block.basefee : 0.001 gwei;
+            if (block.basefee > 0) {
+                gasPriceFromRPC = true;
+                console.log("  Current base fee:", gasPrice / 1e9, "gwei");
+            }
+        } catch {
+            // Fallback to tx.gasprice or conservative estimate
+            gasPrice = tx.gasprice > 0 ? tx.gasprice : 0.01 gwei;
+        }
         
-        console.log("  Estimated deploy gas:", estimatedDeployGas);
-        console.log("  Current gas price:", gasPrice / 1e9, "gwei");
-        console.log("  Estimated gas cost:", estimatedGasCost / 1e18, "ETH");
-        console.log("  LP creation buffer:", lpCreationBuffer / 1e18, "ETH");
+        if (!gasPriceFromRPC) {
+            console.log("  Estimated gas price (fallback):", gasPrice / 1e9, "gwei");
+            console.log("  [INFO] Using conservative estimate");
+        }
+        
+        // Estimate deployment costs with margin
+        uint256 estimatedDeployGas = 15000000; // ~15M gas for deployment
+        uint256 deploymentGasCost = estimatedDeployGas * gasPrice;
+        
+        // Add priority fee buffer for Base L2 (Base uses EIP-1559)
+        uint256 priorityFeeBuffer = gasPrice * 2000000; // Extra 2M gas worth for priority
+        uint256 totalDeploymentCost = deploymentGasCost + priorityFeeBuffer;
+        
+        // Future LP creation costs (owner will pay later)
+        uint256 lpCreationGas = 1000000; // ~1M gas for LP transaction
+        uint256 lpCreationCost = lpCreationGas * gasPrice * 2; // 2x buffer for uncertainty
+        
+        // Safety margin for retries and unexpected costs
+        uint256 safetyMargin = 0.05 ether;
+        
+        // Total recommended
+        uint256 recommendedMinimum = totalDeploymentCost + lpCreationCost + safetyMargin;
+        
+        console.log("");
+        console.log("  DEPLOYMENT ESTIMATE:");
+        console.log("    Gas needed:", estimatedDeployGas);
+        console.log("    Base cost:", deploymentGasCost / 1e18, "ETH");
+        console.log("    Priority fee buffer:", priorityFeeBuffer / 1e18, "ETH");
+        console.log("    Subtotal:", totalDeploymentCost / 1e18, "ETH");
+        console.log("");
+        console.log("  LP CREATION ESTIMATE:");
+        console.log("    Gas needed:", lpCreationGas);
+        console.log("    Estimated cost:", lpCreationCost / 1e18, "ETH");
+        console.log("");
+        console.log("  SAFETY MARGIN:", safetyMargin / 1e18, "ETH");
         console.log("  ---");
-        console.log("  Recommended minimum:", recommendedMinimum / 1e18, "ETH");
-        console.log("  Your balance:", deployer.balance / 1e18, "ETH");
+        console.log("  TOTAL RECOMMENDED:", recommendedMinimum / 1e18, "ETH");
+        console.log("  YOUR BALANCE:", deployer.balance / 1e18, "ETH");
         
         if (deployer.balance < recommendedMinimum) {
             uint256 shortfall = recommendedMinimum - deployer.balance;
-            console.log("\n  [WARNING] INSUFFICIENT BALANCE!");
-            console.log("  [WARNING] You need", shortfall / 1e18, "more ETH");
-            console.log("  [WARNING] Deployment may fail or revert");
-            console.log("\n  [ACTION] Add", shortfall / 1e18, "ETH to", deployer);
-            console.log("  [ACTION] Then re-run this script");
-            revert("Insufficient deployer balance - see above for details");
+            console.log("");
+            console.log("  [CRITICAL] INSUFFICIENT BALANCE!");
+            console.log("  [CRITICAL] Short by:", shortfall / 1e18, "ETH");
+            console.log("");
+            console.log("  ACTION REQUIRED:");
+            console.log("  1. Send", shortfall / 1e18, "ETH to:", deployer);
+            console.log("  2. Wait for confirmation");
+            console.log("  3. Re-run this deployment script");
+            console.log("");
+            console.log("=================================================================");
+            revert("Insufficient deployer balance - add more ETH and retry");
         } else {
             uint256 surplus = deployer.balance - recommendedMinimum;
-            console.log("\n  [OK] SUFFICIENT BALANCE");
-            console.log("  [OK] Surplus:", surplus / 1e18, "ETH");
+            console.log("");
+            console.log("  [OK] SUFFICIENT BALANCE");
+            console.log("  [OK] Surplus after deployment:", surplus / 1e18, "ETH");
+            
+            if (surplus < 0.1 ether) {
+                console.log("  [WARNING] Surplus is low");
+                console.log("  [WARNING] Consider adding 0.1 ETH more for safety");
+            } else {
+                console.log("  [OK] Comfortable surplus for retries");
+            }
         }
         
         console.log("=================================================================");
@@ -203,6 +255,14 @@ contract DeployScript is Script {
         require(!conspirapuppets.mintCompleted(), "Mint already completed!");
         console.log("  [GOOD] Mint not completed");
         
+        // Check timing edge cases
+        (bool isEdgeCase, string memory edgeReason) = conspirapuppets.isTimingEdgeCase();
+        if (isEdgeCase) {
+            console.log("  [WARNING] Timing edge case detected:", edgeReason);
+        } else {
+            console.log("  [GOOD] No timing edge cases detected");
+        }
+        
         vm.stopBroadcast();
         
         // =========================================================================
@@ -215,10 +275,12 @@ contract DeployScript is Script {
         console.log("Conspirapuppets:", address(conspirapuppets));
         console.log("LP Pair:", lpPair);
         console.log("");
-        console.log("IMPORTANT: Add to .env:");
+        console.log("SAVE THESE TO .env:");
+        console.log("---");
         console.log("TINFOIL_TOKEN_ADDRESS=%s", address(tinfoilToken));
         console.log("CONSPIRAPUPPETS_ADDRESS=%s", address(conspirapuppets));
         console.log("LP_PAIR_ADDRESS=%s", lpPair);
+        console.log("---");
         console.log("");
         console.log("=================================================================");
         console.log("PRE-LAUNCH CHECKLIST");
@@ -230,27 +292,28 @@ contract DeployScript is Script {
         console.log("[GOOD] SeaDrop configured");
         console.log("[GOOD] Fee recipients configured");
         console.log("[GOOD] All verifications passed");
+        console.log("[GOOD] Timing safeguards in place");
         console.log("");
         console.log("=================================================================");
         console.log("MINT SCHEDULE");
         console.log("=================================================================");
         console.log("Current time:", block.timestamp);
-        console.log("Mint starts:", startTime);
+        console.log("Mint starts:", startTime, "(in ~60 seconds)");
         console.log("Mint ends:", endTime);
         console.log("");
-        console.log("Time until launch:", startTime - block.timestamp, "seconds");
-        console.log("");
-        console.log("[!] Mint will be LIVE in ~1 minute");
-        console.log("[!] Verify everything is correct before minting starts");
-        console.log("");
         console.log("=================================================================");
-        console.log("POST-DEPLOYMENT ACTIONS");
+        console.log("POST-LAUNCH MONITORING");
         console.log("=================================================================");
-        console.log("1. Save addresses to .env file");
-        console.log("2. Verify contracts on Basescan");
-        console.log("3. Test mint on testnet first if not already done");
-        console.log("4. Monitor mint progress with CheckStatus.s.sol");
-        console.log("5. After sell-out, wait 5 minutes then call createLP()");
+        console.log("1. Monitor mint with CheckStatus.s.sol");
+        console.log("2. After sell-out, wait 5 minutes for LP creation delay");
+        console.log("3. Call createLP() to create liquidity pool");
+        console.log("4. If issues arise, use RetryLP.s.sol");
+        console.log("5. For diagnostics, use EmergencyRecover.s.sol");
+        console.log("6. Withdraw operational funds after LP is live");
+        console.log("");
+        console.log("Commands:");
+        console.log("  forge script script/CheckStatus.s.sol --rpc-url $BASE_RPC_URL");
+        console.log("  cast send $CONSPIRAPUPPETS 'createLP()' --private-key $PRIVATE_KEY");
         console.log("=================================================================");
     }
 }
