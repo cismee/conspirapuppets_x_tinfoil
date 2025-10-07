@@ -25,6 +25,7 @@ contract CheckStatusScript is Script {
         TinfoilToken tinfoilToken = TinfoilToken(tinfoilAddress);
         Conspirapuppets conspirapuppets = Conspirapuppets(nftAddress);
         
+        // UPDATED: Now includes totalEthReceived as 8th return value
         (
             uint256 totalSupply,
             uint256 maxSupply,
@@ -32,7 +33,8 @@ contract CheckStatusScript is Script {
             uint256 contractBalance,
             uint256 tokensPerNFT,
             uint256 operationalFunds,
-            bool lpCreated
+            bool lpCreated,
+            uint256 totalEthReceived
         ) = conspirapuppets.getMintStatus();
         
         (
@@ -50,7 +52,7 @@ contract CheckStatusScript is Script {
         console.log("  Contract Balance:", contractBalance / 1e18, "ETH");
         console.log("  Operational Funds:", operationalFunds / 1e18, "ETH");
         console.log("  LP Created:", lpCreated);
-        console.log("  Total ETH Received:", conspirapuppets.totalEthReceived() / 1e18, "ETH");
+        console.log("  Total ETH Received:", totalEthReceived / 1e18, "ETH");
         
         console.log("\nToken:");
         console.log("  Total Supply:", tokenTotalSupply / 1e18);
@@ -58,7 +60,6 @@ contract CheckStatusScript is Script {
         console.log("  Total Burned:", totalBurned / 1e18);
         
         if (lpCreated) {
-            // Use the factory interface that's already imported from Conspirapuppets.sol
             IAerodromeFactory factory = IAerodromeFactory(AERODROME_FACTORY);
             address pair = factory.getPair(tinfoilAddress, WETH, false);
             console.log("\nLiquidity Pool:");

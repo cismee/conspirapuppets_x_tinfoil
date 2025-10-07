@@ -11,9 +11,13 @@ contract TinfoilToken is ERC20, Ownable {
     uint256 public totalBurned = 0;
     bool public tradingEnabled = false;
     
+    // FIXED: Added whitelist for LP creation before trading enabled
+    mapping(address => bool) public transferWhitelist;
+    
     event TokensBurned(uint256 amount);
     event NFTContractSet(address indexed nftContract);
     event TradingEnabled();
+    event TransferWhitelistUpdated(address indexed account, bool allowed);
 
     constructor() ERC20("Tinfoil", "TINFOIL") {
     }
@@ -28,6 +32,13 @@ contract TinfoilToken is ERC20, Ownable {
         require(_nftContract != address(0), "Invalid NFT contract address");
         nftContract = _nftContract;
         emit NFTContractSet(_nftContract);
+    }
+
+    // FIXED: Added whitelist management function
+    function setTransferWhitelist(address account, bool allowed) external onlyOwner {
+        require(account != address(0), "Invalid address");
+        transferWhitelist[account] = allowed;
+        emit TransferWhitelistUpdated(account, allowed);
     }
 
     function mint(address to, uint256 amount) external onlyNFTContract {
@@ -52,13 +63,21 @@ contract TinfoilToken is ERC20, Ownable {
         emit TokensBurned(amount);
     }
 
+    // FIXED: Added whitelist check to allow LP creation before trading enabled
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        require(tradingEnabled, "Trading not enabled yet - wait for mint completion");
+        require(
+            tradingEnabled || transferWhitelist[msg.sender] || transferWhitelist[to],
+            "Trading not enabled yet - wait for mint completion"
+        );
         return super.transfer(to, amount);
     }
 
+    // FIXED: Added whitelist check to allow LP creation before trading enabled
     function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
-        require(tradingEnabled, "Trading not enabled yet - wait for mint completion");
+        require(
+            tradingEnabled || transferWhitelist[msg.sender] || transferWhitelist[to],
+            "Trading not enabled yet - wait for mint completion"
+        );
         return super.transferFrom(from, to, amount);
     }
 

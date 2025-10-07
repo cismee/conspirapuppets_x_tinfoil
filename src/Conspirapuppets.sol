@@ -6,6 +6,7 @@ import {ERC721SeaDrop} from "seadrop/src/ERC721SeaDrop.sol";
 import {PublicDrop} from "seadrop/src/lib/ERC721SeaDropStructsErrorsAndEvents.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
 
 interface ITinfoilToken {
     function mint(address to, uint256 amount) external;
@@ -28,7 +29,8 @@ interface IAerodromeFactory {
     function getPair(address tokenA, address tokenB, bool stable) external view returns (address pair);
 }
 
-contract Conspirapuppets is ERC721SeaDrop {
+// FIXED: Added ReentrancyGuard inheritance
+contract Conspirapuppets is ERC721SeaDrop, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     uint256 public constant MAX_SUPPLY = 3333;
@@ -45,8 +47,6 @@ contract Conspirapuppets is ERC721SeaDrop {
     bool public lpCreated = false;
     uint256 public operationalFunds = 0;
     uint256 public totalEthReceived = 0;
-    
-    bool private _mintLock;
     
     address public immutable tinfoilToken;
     address public immutable aerodromeRouter;
@@ -105,21 +105,23 @@ contract Conspirapuppets is ERC721SeaDrop {
         _completeMint();
     }
 
+    // FIXED: Removed nonReentrant from internal function (called from _beforeTokenTransfers)
     function _completeMint() internal {
-        require(!_mintLock, "Reentrancy");
+        // CHECKS
         if (mintCompleted) return;
+        require(address(this).balance > 0, "No ETH to allocate");
         
-        _mintLock = true;
+        // EFFECTS - All state changes before external interactions
         mintCompleted = true;
         
         uint256 totalEth = address(this).balance;
-        require(totalEth > 0, "No ETH to allocate");
-        
         uint256 lpEthAmount = totalEth / 2;
         operationalFunds = totalEth - lpEthAmount;
         
         emit FundsAllocated(lpEthAmount, operationalFunds);
+        emit MintCompleted(totalSupply());
         
+        // INTERACTIONS - External calls last
         if (TOKEN_REMAINDER > 0) {
             ITinfoilToken(tinfoilToken).mint(owner(), TOKEN_REMAINDER);
             emit RemainderMinted(owner(), TOKEN_REMAINDER);
@@ -133,22 +135,12 @@ contract Conspirapuppets is ERC721SeaDrop {
         } else {
             emit LPCreationFailed("LP creation failed during mint completion");
         }
-        
-        emit MintCompleted(totalSupply());
-        
-        _mintLock = false;
     }
 
+    // FIXED: Removed pair existence check to allow Aerodrome to handle it naturally
     function _createAndBurnLP(uint256 ethAmount) internal {
         if (ethAmount == 0) return;
         if (lpCreated) return;
-        
-        // Verify pair doesn't already exist
-        address existingPair = IAerodromeFactory(aerodromeFactory).getPair(tinfoilToken, WETH, false);
-        if (existingPair != address(0)) {
-            emit LPCreationFailed("Pair already exists");
-            return;
-        }
         
         ITinfoilToken(tinfoilToken).mint(address(this), LP_TOKEN_AMOUNT);
         
@@ -217,9 +209,12 @@ contract Conspirapuppets is ERC721SeaDrop {
     ) external onlyOwner nonReentrant {
         require(mintCompleted, "Mint not completed yet");
         require(!lpCreated, "LP already created");
-        require(tokenAmount <= IERC20(tinfoilToken).balanceOf(address(this)), "Insufficient token balance");
-        require(ethAmount <= address(this).balance - operationalFunds, "Insufficient ETH balance");
         require(slippageBps <= 2000, "Slippage too high");
+        
+        // Check token balance (tokens might have been minted in failed LP attempt)
+        uint256 contractTokenBalance = IERC20(tinfoilToken).balanceOf(address(this));
+        require(tokenAmount <= contractTokenBalance, "Insufficient token balance");
+        require(ethAmount <= address(this).balance - operationalFunds, "Insufficient ETH balance");
         
         IERC20(tinfoilToken).approve(aerodromeRouter, tokenAmount);
         
@@ -305,7 +300,8 @@ contract Conspirapuppets is ERC721SeaDrop {
         uint256 _contractBalance,
         uint256 _tokensPerNFT,
         uint256 _operationalFunds,
-        bool _lpCreated
+        bool _lpCreated,
+        uint256 _totalEthReceived
     ) {
         return (
             totalSupply(),
@@ -314,7 +310,8 @@ contract Conspirapuppets is ERC721SeaDrop {
             address(this).balance,
             TOKENS_PER_NFT,
             operationalFunds,
-            lpCreated
+            lpCreated,
+            totalEthReceived
         );
     }
 

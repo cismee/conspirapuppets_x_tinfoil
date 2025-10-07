@@ -41,9 +41,16 @@ contract DeployScript is Script {
         );
         console.log("Conspirapuppets deployed at:", address(conspirapuppets));
         
-        console.log("\nStep 3: Linking contracts");
+        console.log("\nStep 3: Linking contracts and whitelisting");
         tinfoilToken.setNFTContract(address(conspirapuppets));
         console.log("NFT contract linked to TinfoilToken");
+        
+        // FIXED: Whitelist NFT contract and router for LP creation before trading enabled
+        tinfoilToken.setTransferWhitelist(address(conspirapuppets), true);
+        console.log("NFT contract whitelisted for transfers");
+        
+        tinfoilToken.setTransferWhitelist(AERODROME_ROUTER, true);
+        console.log("Aerodrome Router whitelisted for transfers");
         
         console.log("\nStep 4: Configuring Seadrop");
         uint48 startTime = uint48(block.timestamp);
@@ -62,6 +69,9 @@ contract DeployScript is Script {
         console.log("Public drop configured");
         
         console.log("\nStep 5: Setting up fee recipients");
+        // FIXED: Using three-argument form - verify with your SeaDrop version
+        // If your SeaDrop version uses two arguments, change to:
+        // conspirapuppets.updateAllowedFeeRecipient(deployer, true);
         conspirapuppets.updateAllowedFeeRecipient(SEADROP_ADDRESS, deployer, true);
         console.log("Fee recipient configured");
         
@@ -72,6 +82,12 @@ contract DeployScript is Script {
         console.log("=================================================================");
         console.log("TinfoilToken:", address(tinfoilToken));
         console.log("Conspirapuppets:", address(conspirapuppets));
-        console.log("\nSave these addresses for verification and status checks");
+        console.log("\nIMPORTANT: Save these addresses to .env:");
+        console.log("TINFOIL_TOKEN_ADDRESS=", address(tinfoilToken));
+        console.log("CONSPIRAPUPPETS_ADDRESS=", address(conspirapuppets));
+        console.log("\nTransfer whitelist configured:");
+        console.log("  - NFT Contract: whitelisted");
+        console.log("  - Aerodrome Router: whitelisted");
+        console.log("\nThis allows LP creation before trading is enabled");
     }
 }
