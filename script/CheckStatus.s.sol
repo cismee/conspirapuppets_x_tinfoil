@@ -12,6 +12,23 @@ contract CheckStatusScript is Script {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
     
+    // ADDED: Helper to handle pair visibility lag
+    function getPairWithRetry(
+        address factory,
+        address tokenA,
+        address tokenB,
+        bool stable,
+        uint256 maxAttempts
+    ) internal view returns (address) {
+        for (uint256 i = 0; i < maxAttempts; i++) {
+            address pair = IAerodromeFactory(factory).getPair(tokenA, tokenB, stable);
+            if (pair != address(0)) {
+                return pair;
+            }
+        }
+        return address(0);
+    }
+    
     function run() external view {
         address tinfoilAddress = vm.envAddress("TINFOIL_TOKEN_ADDRESS");
         address payable nftAddress = payable(vm.envAddress("CONSPIRAPUPPETS_ADDRESS"));
@@ -103,13 +120,18 @@ contract CheckStatusScript is Script {
         }
         
         if (lpCreated || canCreateLP) {
-            IAerodromeFactory factory = IAerodromeFactory(AERODROME_FACTORY);
-            address pair = factory.getPair(tinfoilAddress, WETH, false);
+            // FIXED: Use retry logic to handle pair visibility lag
+            address pair = getPairWithRetry(AERODROME_FACTORY, tinfoilAddress, WETH, false, 3);
             
             console.log("");
             console.log("  LP Pair Address:", pair);
             
-            if (pair != address(0)) {
+            if (pair == address(0)) {
+                console.log("  [INFO] LP pair not visible yet");
+                console.log("  [INFO] This is normal immediately after LP creation");
+                console.log("  [INFO] Wait 10-30 seconds and re-run this script");
+                console.log("  [INFO] Or check: https://basescan.org/address/%s", nftAddress);
+            } else {
                 uint256 lpAtBurn = IERC20(pair).balanceOf(BURN_ADDRESS);
                 uint256 lpTotalSupply = IERC20(pair).totalSupply();
                 uint256 tokenInPair = IERC20(tinfoilAddress).balanceOf(pair);
@@ -129,8 +151,6 @@ contract CheckStatusScript is Script {
                     console.log("  Price per Token (wei):", pricePerToken);
                     console.log("  Price per Token (gwei):", pricePerToken / 1e9);
                 }
-            } else {
-                console.log("  [WARNING] LP pair not found!");
             }
         }
         
@@ -187,7 +207,7 @@ contract CheckStatusScript is Script {
             }
             console.log("  [EMERGENCY] createLPImmediate()");
             console.log("  [RETRY] retryLPCreation()");
-            console.log("  [CUSTOM] emergencyLPCreation(tokens,eth,slippage)");
+            console.log("  [CUSTOM] emergencyLPCreation(tokens,eth,slippage,gas)");
         } else if (lpCreated && !tradingEnabled) {
             console.log("  [ACTION] enableTradingManual()");
         } else if (lpCreated && tradingEnabled) {

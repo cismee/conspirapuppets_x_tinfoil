@@ -85,6 +85,14 @@ contract Conspirapuppets is ERC721SeaDrop {
         address pair,
         bool stable
     );
+    event LPCreationComplete(
+        address indexed lpPair,
+        uint256 ethAmount,
+        uint256 tokenAmount,
+        uint256 lpBurned,
+        bool tradingEnabled,
+        uint256 timestamp
+    );
 
     constructor(
         string memory name,
@@ -121,6 +129,7 @@ contract Conspirapuppets is ERC721SeaDrop {
             
             emit TokensDistributed(to, tokensToMint);
             
+            // SAFEGUARD: Idempotent - multiple mints in same block handled
             if (!mintCompleted && totalSupply() + quantity >= MAX_SUPPLY) {
                 _scheduleMintCompletion();
             }
@@ -132,9 +141,11 @@ contract Conspirapuppets is ERC721SeaDrop {
     }
 
     function _scheduleMintCompletion() internal {
+        // SAFEGUARD: Idempotent guard for race conditions at sell-out
         if (mintCompleted) return;
         require(address(this).balance >= 0, "No ETH to allocate");
         
+        // CRITICAL: Set flag FIRST to prevent race conditions
         mintCompleted = true;
         
         uint256 totalEth = address(this).balance;
@@ -292,6 +303,16 @@ contract Conspirapuppets is ERC721SeaDrop {
             
             IERC20(tinfoilToken).approve(aerodromeRouter, 0);
             
+            // ADDED: Comprehensive completion event
+            emit LPCreationComplete(
+                lpTokenAddress,
+                amountETH,
+                amountToken,
+                lpBalance,
+                false, // Trading will be enabled separately
+                block.timestamp
+            );
+            
         } catch Error(string memory reason) {
             emit LPCreationFailed(reason);
             IERC20(tinfoilToken).approve(aerodromeRouter, 0);
@@ -360,14 +381,17 @@ contract Conspirapuppets is ERC721SeaDrop {
         }
     }
     
+    // FIXED: Added explicit gas limit parameter for Base provider quirks
     function emergencyLPCreation(
         uint256 tokenAmount,
         uint256 ethAmount,
-        uint256 slippageBps
+        uint256 slippageBps,
+        uint256 gasLimit
     ) external onlyOwner nonReentrant {
         require(mintCompleted, "Mint not completed yet");
         require(!lpCreated, "LP already created");
         require(slippageBps <= 10000, "Slippage must be <= 100%");
+        require(gasLimit > 0 && gasLimit <= 10000000, "Invalid gas limit");
         
         uint256 contractTokenBalance = IERC20(tinfoilToken).balanceOf(address(this));
         
@@ -402,9 +426,10 @@ contract Conspirapuppets is ERC721SeaDrop {
             minEth = 1;
         }
         
-        try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount}(
+        // FIXED: Added explicit gas limit to handle Base provider estimation quirks
+        try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount, gas: gasLimit}(
             tinfoilToken,
-            POOL_IS_STABLE,  // CRITICAL: Use constant
+            POOL_IS_STABLE,
             actualTokenAmount,
             minTokens,
             minEth,
@@ -415,7 +440,7 @@ contract Conspirapuppets is ERC721SeaDrop {
             address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(
                 tinfoilToken,
                 WETH,
-                POOL_IS_STABLE  // CRITICAL: Must match
+                POOL_IS_STABLE
             );
             
             require(lpTokenAddress != address(0), "LP pair not found");
@@ -430,6 +455,15 @@ contract Conspirapuppets is ERC721SeaDrop {
                 
                 ITinfoilToken(tinfoilToken).enableTrading();
                 emit TradingEnabled();
+                
+                emit LPCreationComplete(
+                    lpTokenAddress,
+                    amountETH,
+                    amountToken,
+                    lpBalance,
+                    true,
+                    block.timestamp
+                );
             }
             
             IERC20(tinfoilToken).approve(aerodromeRouter, 0);

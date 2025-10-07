@@ -6,8 +6,6 @@ import "forge-std/console.sol";
 import "../src/TinfoilToken.sol";
 import "../src/Conspirapuppets.sol";
 
-// REMOVED: interface IAerodromeFactory - already imported from Conspirapuppets.sol
-
 contract DeployScript is Script {
     address constant SEADROP_ADDRESS = 0x00005EA00Ac477B1030CE78506496e8C2dE24bf5;
     address constant AERODROME_ROUTER = 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43;
@@ -22,8 +20,48 @@ contract DeployScript is Script {
         console.log("DEPLOYING CONSPIRAPUPPETS WITH SEADROP ON BASE");
         console.log("=================================================================");
         console.log("Deployer:", deployer);
-        console.log("Balance:", deployer.balance / 1e18, "ETH");
+        console.log("Current Balance:", deployer.balance / 1e18, "ETH");
         console.log("Timestamp:", block.timestamp);
+        
+        // =========================================================================
+        // PRE-FLIGHT: Funding Check
+        // =========================================================================
+        console.log("\n=================================================================");
+        console.log("[PRE-FLIGHT] FUNDING ANALYSIS");
+        console.log("=================================================================");
+        
+        // Estimate deployment costs
+        uint256 estimatedDeployGas = 15000000; // ~15M gas for full deployment
+        uint256 gasPrice = tx.gasprice > 0 ? tx.gasprice : 0.001 gwei;
+        uint256 estimatedGasCost = estimatedDeployGas * gasPrice;
+        
+        // Add buffer for LP creation later (owner will need to fund this)
+        uint256 lpCreationBuffer = 0.1 ether; // Extra for LP transaction gas
+        uint256 recommendedMinimum = estimatedGasCost + lpCreationBuffer;
+        
+        console.log("  Estimated deploy gas:", estimatedDeployGas);
+        console.log("  Current gas price:", gasPrice / 1e9, "gwei");
+        console.log("  Estimated gas cost:", estimatedGasCost / 1e18, "ETH");
+        console.log("  LP creation buffer:", lpCreationBuffer / 1e18, "ETH");
+        console.log("  ---");
+        console.log("  Recommended minimum:", recommendedMinimum / 1e18, "ETH");
+        console.log("  Your balance:", deployer.balance / 1e18, "ETH");
+        
+        if (deployer.balance < recommendedMinimum) {
+            uint256 shortfall = recommendedMinimum - deployer.balance;
+            console.log("\n  [WARNING] INSUFFICIENT BALANCE!");
+            console.log("  [WARNING] You need", shortfall / 1e18, "more ETH");
+            console.log("  [WARNING] Deployment may fail or revert");
+            console.log("\n  [ACTION] Add", shortfall / 1e18, "ETH to", deployer);
+            console.log("  [ACTION] Then re-run this script");
+            revert("Insufficient deployer balance - see above for details");
+        } else {
+            uint256 surplus = deployer.balance - recommendedMinimum;
+            console.log("\n  [OK] SUFFICIENT BALANCE");
+            console.log("  [OK] Surplus:", surplus / 1e18, "ETH");
+        }
+        
+        console.log("=================================================================");
         
         vm.startBroadcast(deployerPrivateKey);
         
@@ -178,9 +216,9 @@ contract DeployScript is Script {
         console.log("LP Pair:", lpPair);
         console.log("");
         console.log("IMPORTANT: Add to .env:");
-        console.log("TINFOIL_TOKEN_ADDRESS=", address(tinfoilToken));
-        console.log("CONSPIRAPUPPETS_ADDRESS=", address(conspirapuppets));
-        console.log("LP_PAIR_ADDRESS=", lpPair);
+        console.log("TINFOIL_TOKEN_ADDRESS=%s", address(tinfoilToken));
+        console.log("CONSPIRAPUPPETS_ADDRESS=%s", address(conspirapuppets));
+        console.log("LP_PAIR_ADDRESS=%s", lpPair);
         console.log("");
         console.log("=================================================================");
         console.log("PRE-LAUNCH CHECKLIST");
@@ -204,6 +242,15 @@ contract DeployScript is Script {
         console.log("");
         console.log("[!] Mint will be LIVE in ~1 minute");
         console.log("[!] Verify everything is correct before minting starts");
+        console.log("");
+        console.log("=================================================================");
+        console.log("POST-DEPLOYMENT ACTIONS");
+        console.log("=================================================================");
+        console.log("1. Save addresses to .env file");
+        console.log("2. Verify contracts on Basescan");
+        console.log("3. Test mint on testnet first if not already done");
+        console.log("4. Monitor mint progress with CheckStatus.s.sol");
+        console.log("5. After sell-out, wait 5 minutes then call createLP()");
         console.log("=================================================================");
     }
 }
