@@ -6,7 +6,7 @@ import {ERC721SeaDrop} from "seadrop/src/ERC721SeaDrop.sol";
 import {PublicDrop} from "seadrop/src/lib/ERC721SeaDropStructsErrorsAndEvents.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
+// REMOVED: ReentrancyGuard import - ERC721SeaDrop already has it!
 
 interface ITinfoilToken {
     function mint(address to, uint256 amount) external;
@@ -29,8 +29,8 @@ interface IAerodromeFactory {
     function getPair(address tokenA, address tokenB, bool stable) external view returns (address pair);
 }
 
-// FIXED: Added ReentrancyGuard inheritance
-contract Conspirapuppets is ERC721SeaDrop, ReentrancyGuard {
+// FIXED: Removed ReentrancyGuard inheritance - already in ERC721SeaDrop
+contract Conspirapuppets is ERC721SeaDrop {
     using SafeERC20 for IERC20;
     
     uint256 public constant MAX_SUPPLY = 3333;
@@ -105,7 +105,7 @@ contract Conspirapuppets is ERC721SeaDrop, ReentrancyGuard {
         _completeMint();
     }
 
-    // FIXED: Removed nonReentrant from internal function (called from _beforeTokenTransfers)
+    // Removed nonReentrant from internal function (called from _beforeTokenTransfers)
     function _completeMint() internal {
         // CHECKS
         if (mintCompleted) return;
@@ -137,7 +137,6 @@ contract Conspirapuppets is ERC721SeaDrop, ReentrancyGuard {
         }
     }
 
-    // FIXED: Removed pair existence check to allow Aerodrome to handle it naturally
     function _createAndBurnLP(uint256 ethAmount) internal {
         if (ethAmount == 0) return;
         if (lpCreated) return;
