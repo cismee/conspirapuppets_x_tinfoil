@@ -11,7 +11,6 @@ contract TinfoilToken is ERC20, Ownable {
     uint256 public totalBurned = 0;
     bool public tradingEnabled = false;
     
-    // FIXED: Added whitelist for LP creation before trading enabled
     mapping(address => bool) public transferWhitelist;
     
     event TokensBurned(uint256 amount);
@@ -24,21 +23,30 @@ contract TinfoilToken is ERC20, Ownable {
 
     modifier onlyNFTContract() {
         require(msg.sender == nftContract, "Only NFT contract can call this");
+        require(nftContract != address(0), "NFT contract not set"); // ADDED SAFEGUARD
         _;
     }
 
     function setNFTContract(address _nftContract) external onlyOwner {
         require(nftContract == address(0), "NFT contract already set");
         require(_nftContract != address(0), "Invalid NFT contract address");
+        require(totalSupply() == 0, "Cannot set NFT contract after minting started"); // ADDED SAFEGUARD
         nftContract = _nftContract;
         emit NFTContractSet(_nftContract);
     }
 
-    // FIXED: Added whitelist management function
     function setTransferWhitelist(address account, bool allowed) external onlyOwner {
         require(account != address(0), "Invalid address");
         transferWhitelist[account] = allowed;
         emit TransferWhitelistUpdated(account, allowed);
+    }
+
+    function setTransferWhitelistBatch(address[] calldata accounts, bool allowed) external onlyOwner {
+        for (uint256 i = 0; i < accounts.length; i++) {
+            require(accounts[i] != address(0), "Invalid address");
+            transferWhitelist[accounts[i]] = allowed;
+            emit TransferWhitelistUpdated(accounts[i], allowed);
+        }
     }
 
     function mint(address to, uint256 amount) external onlyNFTContract {
@@ -63,19 +71,22 @@ contract TinfoilToken is ERC20, Ownable {
         emit TokensBurned(amount);
     }
 
-    // FIXED: Added whitelist check to allow LP creation before trading enabled
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
         require(
-            tradingEnabled || transferWhitelist[msg.sender] || transferWhitelist[to],
+            tradingEnabled || 
+            transferWhitelist[msg.sender] || 
+            transferWhitelist[to],
             "Trading not enabled yet - wait for mint completion"
         );
         return super.transfer(to, amount);
     }
 
-    // FIXED: Added whitelist check to allow LP creation before trading enabled
     function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
         require(
-            tradingEnabled || transferWhitelist[msg.sender] || transferWhitelist[to],
+            tradingEnabled || 
+            transferWhitelist[msg.sender] ||
+            transferWhitelist[from] ||
+            transferWhitelist[to],
             "Trading not enabled yet - wait for mint completion"
         );
         return super.transferFrom(from, to, amount);
