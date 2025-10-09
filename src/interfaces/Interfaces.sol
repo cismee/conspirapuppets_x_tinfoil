@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-interface ITinfoilToken {
+interface IDoubloonToken {
     function mint(address to, uint256 amount) external;
     function enableTrading() external;
     function setTransferWhitelist(address account, bool allowed) external;
+    function transferWhitelist(address account) external view returns (bool);
+    function tradingEnabled() external view returns (bool);
+}
+
+interface ILPManager {
+    function createAndBurnLP(uint256 tokenAmount, uint256 slippageBps) external payable returns (bool);
+    function lpCreated() external view returns (bool);
+    function getExpectedLPPair() external view returns (address);
 }
 
 interface IAerodromeRouter {
@@ -22,12 +30,5 @@ interface IAerodromeRouter {
 }
 
 interface IAerodromeFactory {
-    function getPair(address tokenA, address tokenB, bool stable) external view returns (address pair);
+    function getPool(address tokenA, address tokenB, bool stable) external view returns (address);
 }
-
-interface ILPManager {
-    function createAndBurnLP(uint256 tokenAmount, uint256 slippageBps) external payable returns (bool);
-    function lpCreated() external view returns (bool);
-    function getExpectedLPPair() external view returns (address);
-}
-

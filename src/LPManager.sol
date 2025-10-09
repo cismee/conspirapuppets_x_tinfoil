@@ -11,7 +11,7 @@ contract LPManager is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     address public immutable nftContract;
-    address public immutable tinfoilToken;
+    address public immutable doubloonToken;
     address public immutable aerodromeRouter;
     address public immutable aerodromeFactory;
     
@@ -22,10 +22,10 @@ contract LPManager is Ownable, ReentrancyGuard {
     uint256 public constant ROUNDING_BUFFER = 1000;
     
     bool public lpCreated = false;
+    address public lpTokenAddress;
     
     event LiquidityCreated(address indexed lpToken, uint256 ethAmount, uint256 tokenAmount);
     event LPTokensBurned(address indexed lpToken, uint256 amount);
-    event PairWhitelisted(address indexed pair);
     event LPCreationFailed(string reason);
     event DebugLPCreation(
         uint256 tokenAmount,
@@ -46,16 +46,16 @@ contract LPManager is Ownable, ReentrancyGuard {
     
     constructor(
         address _nftContract,
-        address _tinfoilToken,
+        address _doubloonToken,
         address _aerodromeRouter,
         address _aerodromeFactory
     ) {
-        require(_tinfoilToken != address(0), "Invalid token address");
+        require(_doubloonToken != address(0), "Invalid token address");
         require(_aerodromeRouter != address(0), "Invalid router address");
         require(_aerodromeFactory != address(0), "Invalid factory address");
         
         nftContract = _nftContract;
-        tinfoilToken = _tinfoilToken;
+        doubloonToken = _doubloonToken;
         aerodromeRouter = _aerodromeRouter;
         aerodromeFactory = _aerodromeFactory;
         
@@ -78,14 +78,14 @@ contract LPManager is Ownable, ReentrancyGuard {
         if (ethAmount == 0) return false;
         if (lpCreated) return false;
         
-        address existingPair = IAerodromeFactory(aerodromeFactory).getPair(
-            tinfoilToken,
+        address existingPair = IAerodromeFactory(aerodromeFactory).getPool(
+            doubloonToken,
             WETH,
             POOL_IS_STABLE
         );
         
-        IERC20(tinfoilToken).approve(aerodromeRouter, 0);
-        IERC20(tinfoilToken).approve(aerodromeRouter, tokenAmount);
+        IERC20(doubloonToken).approve(aerodromeRouter, 0);
+        IERC20(doubloonToken).approve(aerodromeRouter, tokenAmount);
         
         uint256 minTokens;
         uint256 minETH;
@@ -122,7 +122,7 @@ contract LPManager is Ownable, ReentrancyGuard {
         );
         
         try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount}(
-            tinfoilToken,
+            doubloonToken,
             POOL_IS_STABLE,
             tokenAmount,
             minTokens,
@@ -131,16 +131,13 @@ contract LPManager is Ownable, ReentrancyGuard {
             deadline
         ) returns (uint256 amountToken, uint256 amountETH, uint256) {
             
-            address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(
-                tinfoilToken,
+            lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPool(
+                doubloonToken,
                 WETH,
                 POOL_IS_STABLE
             );
             
             require(lpTokenAddress != address(0), "LP pair not found after creation");
-            
-            ITinfoilToken(tinfoilToken).setTransferWhitelist(lpTokenAddress, true);
-            emit PairWhitelisted(lpTokenAddress);
             
             emit LiquidityCreated(lpTokenAddress, amountETH, amountToken);
             
@@ -152,7 +149,7 @@ contract LPManager is Ownable, ReentrancyGuard {
             emit LPTokensBurned(lpTokenAddress, lpBalance);
             lpCreated = true;
             
-            IERC20(tinfoilToken).approve(aerodromeRouter, 0);
+            IERC20(doubloonToken).approve(aerodromeRouter, 0);
             
             emit LPCreationComplete(
                 lpTokenAddress,
@@ -167,12 +164,12 @@ contract LPManager is Ownable, ReentrancyGuard {
             
         } catch Error(string memory reason) {
             emit LPCreationFailed(reason);
-            IERC20(tinfoilToken).approve(aerodromeRouter, 0);
+            IERC20(doubloonToken).approve(aerodromeRouter, 0);
             return false;
         } catch (bytes memory lowLevelData) {
             string memory reason = _decodeRevertReason(lowLevelData);
             emit LPCreationFailed(reason);
-            IERC20(tinfoilToken).approve(aerodromeRouter, 0);
+            IERC20(doubloonToken).approve(aerodromeRouter, 0);
             return false;
         }
     }
@@ -188,8 +185,8 @@ contract LPManager is Ownable, ReentrancyGuard {
         
         uint256 ethAmount = msg.value;
         
-        IERC20(tinfoilToken).approve(aerodromeRouter, 0);
-        IERC20(tinfoilToken).approve(aerodromeRouter, tokenAmount);
+        IERC20(doubloonToken).approve(aerodromeRouter, 0);
+        IERC20(doubloonToken).approve(aerodromeRouter, tokenAmount);
         
         uint256 minTokens = (tokenAmount * (10000 - slippageBps)) / 10000;
         uint256 minEth = (ethAmount * (10000 - slippageBps)) / 10000;
@@ -207,7 +204,7 @@ contract LPManager is Ownable, ReentrancyGuard {
         }
         
         try IAerodromeRouter(aerodromeRouter).addLiquidityETH{value: ethAmount, gas: gasLimit}(
-            tinfoilToken,
+            doubloonToken,
             POOL_IS_STABLE,
             tokenAmount,
             minTokens,
@@ -216,16 +213,13 @@ contract LPManager is Ownable, ReentrancyGuard {
             block.timestamp + 2 hours
         ) returns (uint256 amountToken, uint256 amountETH, uint256) {
             
-            address lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPair(
-                tinfoilToken,
+            lpTokenAddress = IAerodromeFactory(aerodromeFactory).getPool(
+                doubloonToken,
                 WETH,
                 POOL_IS_STABLE
             );
             
             require(lpTokenAddress != address(0), "LP pair not found");
-            
-            ITinfoilToken(tinfoilToken).setTransferWhitelist(lpTokenAddress, true);
-            emit PairWhitelisted(lpTokenAddress);
             
             emit LiquidityCreated(lpTokenAddress, amountETH, amountToken);
             
@@ -245,17 +239,17 @@ contract LPManager is Ownable, ReentrancyGuard {
                 );
             }
             
-            IERC20(tinfoilToken).approve(aerodromeRouter, 0);
+            IERC20(doubloonToken).approve(aerodromeRouter, 0);
             return true;
             
         } catch Error(string memory reason) {
             emit LPCreationFailed(reason);
-            IERC20(tinfoilToken).approve(aerodromeRouter, 0);
+            IERC20(doubloonToken).approve(aerodromeRouter, 0);
             return false;
         } catch (bytes memory lowLevelData) {
             string memory reason = _decodeRevertReason(lowLevelData);
             emit LPCreationFailed(reason);
-            IERC20(tinfoilToken).approve(aerodromeRouter, 0);
+            IERC20(doubloonToken).approve(aerodromeRouter, 0);
             return false;
         }
     }
@@ -293,8 +287,11 @@ contract LPManager is Ownable, ReentrancyGuard {
     }
     
     function getExpectedLPPair() external view returns (address) {
-        return IAerodromeFactory(aerodromeFactory).getPair(
-            tinfoilToken,
+        if (lpCreated && lpTokenAddress != address(0)) {
+            return lpTokenAddress;
+        }
+        return IAerodromeFactory(aerodromeFactory).getPool(
+            doubloonToken,
             WETH,
             POOL_IS_STABLE
         );

@@ -5,7 +5,7 @@ import {ERC721SeaDrop} from "seadrop/src/ERC721SeaDrop.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import "./interfaces/Interfaces.sol";
 
-contract Conspirapuppets is ERC721SeaDrop {
+contract PixelPirates is ERC721SeaDrop {
     uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant TOKENS_PER_NFT = 499_549 * 10**18;
     uint256 public constant LP_TOKEN_AMOUNT = 1_665_000_000 * 10**18;
@@ -19,8 +19,8 @@ contract Conspirapuppets is ERC721SeaDrop {
     uint256 public operationalFunds = 0;
     uint256 public totalEthReceived = 0;
     
-    address public immutable tinfoilToken;
-    address public immutable lpManager;
+    address public immutable doubloonToken;
+    address public lpManager;
     
     event MintCompleted(uint256 totalSupply, uint256 scheduledLPCreation);
     event ETHReceived(address indexed from, uint256 amount, uint256 totalReceived);
@@ -30,20 +30,28 @@ contract Conspirapuppets is ERC721SeaDrop {
     event OperationalFundsWithdrawn(address indexed recipient, uint256 amount);
     event LPCreationScheduled(uint256 timestamp);
     event TradingEnabled();
-    event LPCreationAttempted(bool success);
+    event LPCreationAttempted(bool success, address indexed caller);
+    event LPManagerSet(address indexed lpManager);
 
     constructor(
         string memory name,
         string memory symbol,
         address[] memory allowedSeaDrop,
-        address _tinfoilToken,
+        address _doubloonToken,
         address _lpManager
     ) ERC721SeaDrop(name, symbol, allowedSeaDrop) {
-        require(_tinfoilToken != address(0), "Invalid token address");
-        require(_lpManager != address(0), "Invalid LP manager address");
+        require(_doubloonToken != address(0), "Invalid token address");
         
-        tinfoilToken = _tinfoilToken;
+        doubloonToken = _doubloonToken;
         lpManager = _lpManager;
+    }
+
+    function setLPManager(address _lpManager) external onlyOwner {
+        require(lpManager == address(0), "LP Manager already set");
+        require(_lpManager != address(0), "Invalid LP Manager address");
+        require(!mintCompleted, "Cannot set LP Manager after mint completion");
+        lpManager = _lpManager;
+        emit LPManagerSet(_lpManager);
     }
 
     function _beforeTokenTransfers(
@@ -56,7 +64,7 @@ contract Conspirapuppets is ERC721SeaDrop {
         
         if (from == address(0) && to != address(0)) {
             uint256 tokensToMint = quantity * TOKENS_PER_NFT;
-            ITinfoilToken(tinfoilToken).mint(to, tokensToMint);
+            IDoubloonToken(doubloonToken).mint(to, tokensToMint);
             
             emit TokensDistributed(to, tokensToMint);
             
@@ -72,18 +80,12 @@ contract Conspirapuppets is ERC721SeaDrop {
 
     function _scheduleMintCompletion() internal {
         if (mintCompleted) return;
-        require(address(this).balance >= 0, "No ETH to allocate");
+        require(lpManager != address(0), "LP Manager not set");
         
         mintCompleted = true;
         
-        uint256 totalEth = address(this).balance;
-        uint256 lpEthAmount = totalEth / 2;
-        operationalFunds = totalEth - lpEthAmount;
-        
-        emit FundsAllocated(lpEthAmount, operationalFunds);
-        
         if (TOKEN_REMAINDER > 0) {
-            ITinfoilToken(tinfoilToken).mint(owner(), TOKEN_REMAINDER);
+            IDoubloonToken(doubloonToken).mint(owner(), TOKEN_REMAINDER);
             emit RemainderMinted(owner(), TOKEN_REMAINDER);
         }
         
@@ -100,63 +102,94 @@ contract Conspirapuppets is ERC721SeaDrop {
         _scheduleMintCompletion();
     }
 
-    function createLP() external onlyOwner nonReentrant {
+    function createLP() external nonReentrant {
         require(mintCompleted, "Mint not completed yet");
         require(lpCreationScheduled, "LP creation not scheduled");
         require(block.timestamp >= lpCreationTimestamp, "LP creation delay not passed");
+        require(lpManager != address(0), "LP Manager not set");
         require(!ILPManager(lpManager).lpCreated(), "LP already created");
-        require(address(this).balance >= operationalFunds, "No ETH available for LP");
         
-        uint256 lpEthAmount = address(this).balance - operationalFunds;
+        uint256 totalEth = address(this).balance;
+        require(totalEth > 0, "No ETH in contract");
+        
+        uint256 lpEthAmount = totalEth / 2;
+        operationalFunds = totalEth - lpEthAmount;
+        
+        emit FundsAllocated(lpEthAmount, operationalFunds);
+        
         require(lpEthAmount > 0, "No ETH for LP");
         
-        ITinfoilToken(tinfoilToken).mint(lpManager, LP_TOKEN_AMOUNT);
+        IDoubloonToken(doubloonToken).mint(lpManager, LP_TOKEN_AMOUNT);
         
         bool success = ILPManager(lpManager).createAndBurnLP{value: lpEthAmount}(
             LP_TOKEN_AMOUNT,
             DEFAULT_SLIPPAGE_BPS
         );
         
-        emit LPCreationAttempted(success);
+        emit LPCreationAttempted(success, msg.sender);
         
         if (success) {
-            ITinfoilToken(tinfoilToken).enableTrading();
+            // Whitelist the LP pair that was just created
+            address lpPair = ILPManager(lpManager).getExpectedLPPair();
+            if (lpPair != address(0)) {
+                IDoubloonToken(doubloonToken).setTransferWhitelist(lpPair, true);
+            }
+            
+            IDoubloonToken(doubloonToken).enableTrading();
             emit TradingEnabled();
         }
     }
 
-    function createLPImmediate() external onlyOwner nonReentrant {
+    function createLPImmediate() external nonReentrant {
         require(mintCompleted, "Mint not completed yet");
+        require(lpManager != address(0), "LP Manager not set");
         require(!ILPManager(lpManager).lpCreated(), "LP already created");
-        require(address(this).balance >= operationalFunds, "No ETH available for LP");
         
-        uint256 lpEthAmount = address(this).balance - operationalFunds;
+        uint256 totalEth = address(this).balance;
+        require(totalEth > 0, "No ETH in contract");
         
-        ITinfoilToken(tinfoilToken).mint(lpManager, LP_TOKEN_AMOUNT);
+        uint256 lpEthAmount = totalEth / 2;
+        operationalFunds = totalEth - lpEthAmount;
+        
+        emit FundsAllocated(lpEthAmount, operationalFunds);
+        
+        IDoubloonToken(doubloonToken).mint(lpManager, LP_TOKEN_AMOUNT);
         
         bool success = ILPManager(lpManager).createAndBurnLP{value: lpEthAmount}(
             LP_TOKEN_AMOUNT,
             DEFAULT_SLIPPAGE_BPS
         );
         
-        emit LPCreationAttempted(success);
+        emit LPCreationAttempted(success, msg.sender);
         
         if (success) {
-            ITinfoilToken(tinfoilToken).enableTrading();
+            // Whitelist the LP pair that was just created
+            address lpPair = ILPManager(lpManager).getExpectedLPPair();
+            if (lpPair != address(0)) {
+                IDoubloonToken(doubloonToken).setTransferWhitelist(lpPair, true);
+            }
+            
+            IDoubloonToken(doubloonToken).enableTrading();
             emit TradingEnabled();
         }
     }
 
     function retryLPCreation() external onlyOwner nonReentrant {
         require(mintCompleted, "Mint not completed yet");
+        require(lpManager != address(0), "LP Manager not set");
         require(!ILPManager(lpManager).lpCreated(), "LP already created");
-        require(address(this).balance >= operationalFunds, "No ETH available for LP");
         
-        uint256 lpEthAmount = address(this).balance - operationalFunds;
+        uint256 totalEth = address(this).balance;
+        require(totalEth > 0, "No ETH in contract");
         
-        uint256 currentBalance = IERC20(tinfoilToken).balanceOf(lpManager);
+        uint256 lpEthAmount = totalEth / 2;
+        operationalFunds = totalEth - lpEthAmount;
+        
+        emit FundsAllocated(lpEthAmount, operationalFunds);
+        
+        uint256 currentBalance = IERC20(doubloonToken).balanceOf(lpManager);
         if (currentBalance < LP_TOKEN_AMOUNT) {
-            ITinfoilToken(tinfoilToken).mint(lpManager, LP_TOKEN_AMOUNT - currentBalance);
+            IDoubloonToken(doubloonToken).mint(lpManager, LP_TOKEN_AMOUNT - currentBalance);
         }
         
         bool success = ILPManager(lpManager).createAndBurnLP{value: lpEthAmount}(
@@ -164,10 +197,16 @@ contract Conspirapuppets is ERC721SeaDrop {
             DEFAULT_SLIPPAGE_BPS
         );
         
-        emit LPCreationAttempted(success);
+        emit LPCreationAttempted(success, msg.sender);
         
         if (success) {
-            ITinfoilToken(tinfoilToken).enableTrading();
+            // Whitelist the LP pair that was just created
+            address lpPair = ILPManager(lpManager).getExpectedLPPair();
+            if (lpPair != address(0)) {
+                IDoubloonToken(doubloonToken).setTransferWhitelist(lpPair, true);
+            }
+            
+            IDoubloonToken(doubloonToken).enableTrading();
             emit TradingEnabled();
         }
     }
@@ -222,6 +261,11 @@ contract Conspirapuppets is ERC721SeaDrop {
         bool _lpCreated,
         uint256 _totalEthReceived
     ) {
+        bool _lpCreatedStatus = false;
+        if (lpManager != address(0)) {
+            _lpCreatedStatus = ILPManager(lpManager).lpCreated();
+        }
+        
         return (
             totalSupply(),
             MAX_SUPPLY,
@@ -229,7 +273,7 @@ contract Conspirapuppets is ERC721SeaDrop {
             address(this).balance,
             TOKENS_PER_NFT,
             operationalFunds,
-            ILPManager(lpManager).lpCreated(),
+            _lpCreatedStatus,
             totalEthReceived
         );
     }
@@ -240,9 +284,14 @@ contract Conspirapuppets is ERC721SeaDrop {
         bool _canCreateLP,
         uint256 _timeRemaining
     ) {
+        bool _lpCreatedStatus = false;
+        if (lpManager != address(0)) {
+            _lpCreatedStatus = ILPManager(lpManager).lpCreated();
+        }
+        
         bool canCreate = lpCreationScheduled && 
                         block.timestamp >= lpCreationTimestamp && 
-                        !ILPManager(lpManager).lpCreated();
+                        !_lpCreatedStatus;
         uint256 timeRemaining = 0;
         
         if (lpCreationScheduled && block.timestamp < lpCreationTimestamp) {
@@ -253,12 +302,14 @@ contract Conspirapuppets is ERC721SeaDrop {
     }
 
     function getExpectedLPPair() external view returns (address) {
+        require(lpManager != address(0), "LP Manager not set");
         return ILPManager(lpManager).getExpectedLPPair();
     }
 
     function forceScheduleLPCreation() external onlyOwner {
         require(mintCompleted, "Mint not completed");
         require(!lpCreationScheduled, "Already scheduled");
+        require(lpManager != address(0), "LP Manager not set");
         require(!ILPManager(lpManager).lpCreated(), "LP already created");
         
         lpCreationTimestamp = block.timestamp + LP_CREATION_DELAY;
