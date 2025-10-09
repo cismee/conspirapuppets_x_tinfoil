@@ -32,3 +32,4 @@ runs = 1000
 [profile.ci]
 fuzz = { runs = 10_000 }
 invariant = { runs = 1_000, depth = 1_000, fail_on_revert = false }
+

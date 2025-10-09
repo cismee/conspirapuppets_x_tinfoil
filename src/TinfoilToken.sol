@@ -23,19 +23,27 @@ contract TinfoilToken is ERC20, Ownable {
 
     modifier onlyNFTContract() {
         require(msg.sender == nftContract, "Only NFT contract can call this");
-        require(nftContract != address(0), "NFT contract not set"); // ADDED SAFEGUARD
+        require(nftContract != address(0), "NFT contract not set");
+        _;
+    }
+    
+    modifier onlyNFTOrOwner() {
+        require(
+            msg.sender == nftContract || msg.sender == owner(),
+            "Only NFT contract or owner can call this"
+        );
         _;
     }
 
     function setNFTContract(address _nftContract) external onlyOwner {
         require(nftContract == address(0), "NFT contract already set");
         require(_nftContract != address(0), "Invalid NFT contract address");
-        require(totalSupply() == 0, "Cannot set NFT contract after minting started"); // ADDED SAFEGUARD
+        require(totalSupply() == 0, "Cannot set NFT contract after minting started");
         nftContract = _nftContract;
         emit NFTContractSet(_nftContract);
     }
 
-    function setTransferWhitelist(address account, bool allowed) external onlyOwner {
+    function setTransferWhitelist(address account, bool allowed) public onlyNFTOrOwner {
         require(account != address(0), "Invalid address");
         transferWhitelist[account] = allowed;
         emit TransferWhitelistUpdated(account, allowed);
