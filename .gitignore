@@ -1,4 +1,3 @@
-cat > .gitignore << EOF
 # Dependencies
 node_modules/
 lib/
@@ -7,22 +6,77 @@ lib/
 out/
 cache/
 artifacts/
+typechain/
+typechain-types/
 
 # Environment files
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.test
+
+# Foundry specific
+broadcast/
+broadcast/*.json
+broadcast/**/*.json
+
+# Coverage reports
+coverage/
+coverage.json
+lcov.info
+
+# Gas reports
+.gas-snapshot
+gasReporterOutput.json
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS files
 .DS_Store
 Thumbs.db
+*.log
 
-# Foundry specific
-broadcast/
-EOF
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test artifacts
+test-results/
+.hypothesis/
+
+# Documentation build
+docs/book/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Flattened contracts
+flattened/
+
+# Sensitive data (extra protection)
+*.key
+*.pem
+private_keys/
+secrets/
+
+# Compiled artifacts
+*.abi
+*.bin
+
+# Slither reports
+slither-reports/
+
+# Mythril reports
+mythril-reports/
