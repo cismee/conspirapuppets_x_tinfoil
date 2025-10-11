@@ -27,7 +27,7 @@ This system combines three smart contracts to create a trustless NFT-to-token la
 - **Name**: ConspiraPuppets
 - **Symbol**: CONSPIRA
 - **Max Supply**: 3,333 NFTs
-- **Tokens per NFT**: 499,549 DBLN
+- **Tokens per NFT**: 499,549 TINFOIL
 
 ### Token (Tinfoil)
 - **Name**: Tinfoil
