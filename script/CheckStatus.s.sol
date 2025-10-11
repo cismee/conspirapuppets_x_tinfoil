@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/DoubloonToken.sol";
-import "../src/PixelPirates.sol";
+import "../src/TinfoilToken.sol";
+import "../src/ConspiraPuppets.sol";
 import "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 contract CheckStatusScript is Script {
@@ -29,20 +29,20 @@ contract CheckStatusScript is Script {
     }
     
     function run() external view {
-        address doubloonAddress = vm.envAddress("DOUBLOON_TOKEN_ADDRESS");
-        address payable nftAddress = payable(vm.envAddress("PIXELPIRATES_ADDRESS"));
+        address tinfoilAddress = vm.envAddress("TINFOIL_TOKEN_ADDRESS");
+        address payable nftAddress = payable(vm.envAddress("CONSPIRAPUPPETS_ADDRESS"));
         
         console.log("=================================================================");
-        console.log("PIXELPIRATES TEST STATUS CHECK");
+        console.log("CONSPIRAPUPPETS TEST STATUS CHECK");
         console.log("=================================================================");
         console.log("Timestamp:", block.timestamp);
         console.log("Block Number:", block.number);
         console.log("");
-        console.log("DoubloonToken:", doubloonAddress);
-        console.log("PixelPirates:", nftAddress);
+        console.log("TinfoilToken:", tinfoilAddress);
+        console.log("ConspiraPuppets:", nftAddress);
         
-        DoubloonToken doubloonToken = DoubloonToken(doubloonAddress);
-        PixelPirates pixelPirates = PixelPirates(nftAddress);
+        TinfoilToken tinfoilToken = TinfoilToken(tinfoilAddress);
+        ConspiraPuppets conspiraPuppets = ConspiraPuppets(nftAddress);
         
         // Get mint status
         (
@@ -54,7 +54,7 @@ contract CheckStatusScript is Script {
             uint256 operationalFunds,
             bool lpCreated,
             uint256 totalEthReceived
-        ) = pixelPirates.getMintStatus();
+        ) = conspiraPuppets.getMintStatus();
         
         // Get token info
         (
@@ -64,7 +64,7 @@ contract CheckStatusScript is Script {
             uint256 circulatingSupply,
             bool tradingEnabled,
             bool maxSupplyReached
-        ) = doubloonToken.getTokenInfo();
+        ) = tinfoilToken.getTokenInfo();
         
         // Get LP creation status
         (
@@ -72,7 +72,7 @@ contract CheckStatusScript is Script {
             uint256 lpCreationTimestamp,
             bool canCreateLP,
             uint256 timeRemaining
-        ) = pixelPirates.getLPCreationStatus();
+        ) = conspiraPuppets.getLPCreationStatus();
         
         console.log("\n=================================================================");
         console.log("NFT COLLECTION STATUS");
@@ -89,7 +89,7 @@ contract CheckStatusScript is Script {
         console.log("  Operational Funds:", operationalFunds / 1e18, "ETH");
         
         console.log("\n=================================================================");
-        console.log("DOUBLOON TOKEN STATUS");
+        console.log("TINFOIL TOKEN STATUS");
         console.log("=================================================================");
         console.log("  Total Supply:", tokenTotalSupply / 1e18);
         console.log("  Max Supply:", tokenMaxSupply / 1e18);
@@ -119,7 +119,7 @@ contract CheckStatusScript is Script {
         }
         
         if (lpCreated || canCreateLP) {
-            address pair = getPairWithRetry(AERODROME_FACTORY, doubloonAddress, WETH, false, 3);
+            address pair = getPairWithRetry(AERODROME_FACTORY, tinfoilAddress, WETH, false, 3);
             
             console.log("");
             console.log("  LP Pair Address:", pair);
@@ -132,7 +132,7 @@ contract CheckStatusScript is Script {
             } else {
                 uint256 lpAtBurn = IERC20(pair).balanceOf(BURN_ADDRESS);
                 uint256 lpTotalSupply = IERC20(pair).totalSupply();
-                uint256 tokenInPair = IERC20(doubloonAddress).balanceOf(pair);
+                uint256 tokenInPair = IERC20(tinfoilAddress).balanceOf(pair);
                 uint256 ethInPair = IERC20(WETH).balanceOf(pair);
                 
                 console.log("  LP Total Supply:", lpTotalSupply / 1e18);
@@ -222,8 +222,8 @@ contract CheckStatusScript is Script {
         address nftContract = nftAddress;
         address aerodromeRouter = 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43;
         
-        bool nftWhitelisted = doubloonToken.transferWhitelist(nftContract);
-        bool routerWhitelisted = doubloonToken.transferWhitelist(aerodromeRouter);
+        bool nftWhitelisted = tinfoilToken.transferWhitelist(nftContract);
+        bool routerWhitelisted = tinfoilToken.transferWhitelist(aerodromeRouter);
         
         console.log("  NFT Contract:", nftWhitelisted ? "YES" : "NO");
         console.log("  Router:", routerWhitelisted ? "YES" : "NO");

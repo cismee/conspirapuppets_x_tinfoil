@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-contracts/access/Ownable.sol";
 
-contract DoubloonToken is ERC20, Ownable {
+contract TinfoilToken is ERC20, Ownable {
     uint256 public constant MAX_SUPPLY = 3_330_000_000 * 10**18;
     
     address public nftContract;
@@ -18,7 +18,7 @@ contract DoubloonToken is ERC20, Ownable {
     event TradingEnabled();
     event TransferWhitelistUpdated(address indexed account, bool allowed);
 
-    constructor() ERC20("Doubloon", "DBLN") {
+    constructor() ERC20("Tinfoil", "TINFOIL") {
     }
 
     modifier onlyNFTContract() {

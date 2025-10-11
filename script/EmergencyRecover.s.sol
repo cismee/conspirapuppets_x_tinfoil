@@ -3,8 +3,8 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/DoubloonToken.sol";
-import "../src/PixelPirates.sol";
+import "../src/TinfoilToken.sol";
+import "../src/ConspiraPuppets.sol";
 import "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 contract EmergencyRecoverScript is Script {
@@ -16,18 +16,18 @@ contract EmergencyRecoverScript is Script {
     function run() external view {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        address doubloonAddress = vm.envAddress("DOUBLOON_TOKEN_ADDRESS");
-        address payable nftAddress = payable(vm.envAddress("PIXELPIRATES_ADDRESS"));
+        address tinfoilAddress = vm.envAddress("TINFOIL_TOKEN_ADDRESS");
+        address payable nftAddress = payable(vm.envAddress("CONSPIRAPUPPETS_ADDRESS"));
         
         console.log("=================================================================");
         console.log("EMERGENCY RECOVERY TOOL");
         console.log("=================================================================");
         console.log("Operator:", deployer);
-        console.log("DoubloonToken:", doubloonAddress);
-        console.log("PixelPirates:", nftAddress);
+        console.log("TinfoilToken:", tinfoilAddress);
+        console.log("ConspiraPuppets:", nftAddress);
         
-        DoubloonToken doubloonToken = DoubloonToken(doubloonAddress);
-        PixelPirates pixelPirates = PixelPirates(nftAddress);
+        TinfoilToken tinfoilToken = TinfoilToken(tinfoilAddress);
+        ConspiraPuppets conspiraPuppets = ConspiraPuppets(nftAddress);
         
         // Diagnostic checks
         console.log("\n[DIAGNOSTIC CHECKS]");
@@ -41,7 +41,7 @@ contract EmergencyRecoverScript is Script {
             uint256 operationalFunds,
             bool lpCreated,
             uint256 totalEthReceived
-        ) = pixelPirates.getMintStatus();
+        ) = conspiraPuppets.getMintStatus();
         
         console.log("  NFTs Minted:", totalSupply);
         console.log("  Mint Completed:", mintCompleted);
@@ -51,16 +51,16 @@ contract EmergencyRecoverScript is Script {
         console.log("  Total ETH Received:", totalEthReceived / 1e18, "ETH");
         
         // Check token balances
-        uint256 nftTokenBalance = doubloonToken.balanceOf(nftAddress);
+        uint256 nftTokenBalance = tinfoilToken.balanceOf(nftAddress);
         console.log("  Tokens in NFT contract:", nftTokenBalance / 1e18);
         
         // Check LP pair
         IAerodromeFactory factory = IAerodromeFactory(AERODROME_FACTORY);
-        address pair = factory.getPool(doubloonAddress, WETH, false);
+        address pair = factory.getPool(tinfoilAddress, WETH, false);
         console.log("  LP Pair:", pair);
         
         if (pair != address(0)) {
-            uint256 tokenInPair = doubloonToken.balanceOf(pair);
+            uint256 tokenInPair = tinfoilToken.balanceOf(pair);
             uint256 ethInPair = IERC20(WETH).balanceOf(pair);
             uint256 lpAtBurn = IERC20(pair).balanceOf(BURN_ADDRESS);
             
@@ -70,9 +70,9 @@ contract EmergencyRecoverScript is Script {
         }
         
         // Check whitelists
-        bool nftWhitelisted = doubloonToken.transferWhitelist(nftAddress);
-        bool routerWhitelisted = doubloonToken.transferWhitelist(AERODROME_ROUTER);
-        bool pairWhitelisted = pair != address(0) ? doubloonToken.transferWhitelist(pair) : false;
+        bool nftWhitelisted = tinfoilToken.transferWhitelist(nftAddress);
+        bool routerWhitelisted = tinfoilToken.transferWhitelist(AERODROME_ROUTER);
+        bool pairWhitelisted = pair != address(0) ? tinfoilToken.transferWhitelist(pair) : false;
         
         console.log("\n[WHITELIST STATUS]");
         console.log("  NFT Contract:", nftWhitelisted ? "YES" : "NO");
@@ -80,7 +80,7 @@ contract EmergencyRecoverScript is Script {
         console.log("  LP Pair:", pairWhitelisted ? "YES" : "NO");
         
         // Trading status
-        bool tradingEnabled = doubloonToken.tradingEnabled();
+        bool tradingEnabled = tinfoilToken.tradingEnabled();
         console.log("\n[TRADING STATUS]");
         console.log("  Trading Enabled:", tradingEnabled);
         
@@ -141,19 +141,19 @@ contract EmergencyRecoverScript is Script {
             console.log("  Required actions:");
             if (!nftWhitelisted) {
                 console.log("  1. Whitelist NFT contract:");
-                console.log("     cast send %s", doubloonAddress);
+                console.log("     cast send %s", tinfoilAddress);
                 console.log("     'setTransferWhitelist(address,bool)'");
                 console.log("     %s true --private-key $PRIVATE_KEY", nftAddress);
             }
             if (!routerWhitelisted) {
                 console.log("  2. Whitelist Router:");
-                console.log("     cast send %s", doubloonAddress);
+                console.log("     cast send %s", tinfoilAddress);
                 console.log("     'setTransferWhitelist(address,bool)'");
                 console.log("     %s true --private-key $PRIVATE_KEY", AERODROME_ROUTER);
             }
             if (pair != address(0) && !pairWhitelisted) {
                 console.log("  3. Whitelist LP Pair:");
-                console.log("     cast send %s", doubloonAddress);
+                console.log("     cast send %s", tinfoilAddress);
                 console.log("     'setTransferWhitelist(address,bool)'");
                 console.log("     %s true --private-key $PRIVATE_KEY", pair);
             }

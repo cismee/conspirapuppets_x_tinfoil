@@ -3,12 +3,12 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/PixelPirates.sol";
+import "../src/ConspiraPuppets.sol";
 
 contract RetryLPScript is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address payable nftAddress = payable(vm.envAddress("PIXELPIRATES_ADDRESS"));
+        address payable nftAddress = payable(vm.envAddress("CONSPIRAPUPPETS_ADDRESS"));
         
         console.log("=================================================================");
         console.log("LP CREATION RETRY TOOL");
@@ -18,7 +18,7 @@ contract RetryLPScript is Script {
         console.log("Block:", block.number);
         console.log("Timestamp:", block.timestamp);
         
-        PixelPirates pixelPirates = PixelPirates(nftAddress);
+        ConspiraPuppets conspiraPuppets = ConspiraPuppets(nftAddress);
         
         // Get current status
         (
@@ -30,7 +30,7 @@ contract RetryLPScript is Script {
             uint256 operationalFunds,
             bool lpCreated,
             
-        ) = pixelPirates.getMintStatus();
+        ) = conspiraPuppets.getMintStatus();
         
         console.log("\n[STATUS CHECK]");
         console.log("  Mint Completed:", mintCompleted);
@@ -58,11 +58,11 @@ contract RetryLPScript is Script {
         for (uint256 i = 0; i < gasLimits.length; i++) {
             console.log("\n[ATTEMPT %s] Gas limit:", i + 1, gasLimits[i]);
             
-            try pixelPirates.retryLPCreation{gas: gasLimits[i]}() {
+            try conspiraPuppets.retryLPCreation{gas: gasLimits[i]}() {
                 console.log("  [SUCCESS] LP creation succeeded!");
                 
                 // Verify it worked
-                (, , , , , , bool nowCreated, ) = pixelPirates.getMintStatus();
+                (, , , , , , bool nowCreated, ) = conspiraPuppets.getMintStatus();
                 if (nowCreated) {
                     console.log("  [VERIFIED] LP is now created");
                     vm.stopBroadcast();

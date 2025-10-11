@@ -1,4 +1,4 @@
-# PixelPirates - Automated NFT-to-Token Launch System
+# ConspiraPuppets - Automated NFT-to-Token Launch System
 
 A production-ready, fully automated NFT launch system that seamlessly distributes ERC20 tokens to NFT minters and creates a permissionless, rug-proof liquidity pool on Aerodrome DEX.
 
@@ -6,8 +6,8 @@ A production-ready, fully automated NFT launch system that seamlessly distribute
 
 This system combines three smart contracts to create a trustless NFT-to-token launch pipeline:
 
-1. **ERC721 NFT Collection** (PixelPirates.sol) - SeaDrop-powered minting
-2. **ERC20 Token** (DoubloonToken.sol) - Tradeable token with transfer restrictions
+1. **ERC721 NFT Collection** (ConspiraPuppets.sol) - SeaDrop-powered minting
+2. **ERC20 Token** (TinfoilToken.sol) - Tradeable token with transfer restrictions
 3. **LP Manager** (LPManager.sol) - Automated DEX liquidity creation
 
 ### Key Features
@@ -24,21 +24,21 @@ This system combines three smart contracts to create a trustless NFT-to-token la
 ## 📋 Current Configuration
 
 ### NFT Collection
-- **Name**: PixelPirates
-- **Symbol**: PIXX
+- **Name**: ConspiraPuppets
+- **Symbol**: CONSPIRA
 - **Max Supply**: 3,333 NFTs
 - **Tokens per NFT**: 499,549 DBLN
 
-### Token (Doubloon)
-- **Name**: Doubloon
-- **Symbol**: DBLN
+### Token (Tinfoil)
+- **Name**: Tinfoil
+- **Symbol**: TINFOIL
 - **Max Supply**: 3,330,000,000 tokens (3.33 billion)
 - **Decimals**: 18
 
 ### Economics
-- **50%** of tokens → NFT minters (1,664,996,817 DBLN)
-- **50%** of tokens → Liquidity Pool (1,665,000,000 DBLN)
-- **0.01%** remainder → Project owner (3,183 DBLN)
+- **50%** of tokens → NFT minters (1,664,996,817 TINFOIL)
+- **50%** of tokens → Liquidity Pool (1,665,000,000 TINFOIL)
+- **0.01%** remainder → Project owner (3,183 TINFOIL)
 
 ### ETH Distribution (Post-Mint)
 - **50%** → Liquidity Pool
@@ -55,20 +55,20 @@ This system combines three smart contracts to create a trustless NFT-to-token la
 │
 ▼
 ┌─────────────────┐      ┌──────────────────┐
-│  PixelPirates   │◄────►│  DoubloonToken   │
-│  (ERC721)       │      │  (ERC20)         │
+│ ConspirePuppets │◄────►│   TinfoilToken   │
+│  (ERC721)       │      │   (ERC20)        │
 └────────┬────────┘      └──────────────────┘
 │                         ▲
 │ ETH                     │ Mints tokens
 ▼                         │
-┌─────────────────┐                │
-│  Collects ETH   │                │
-│  Until Sellout  │                │
-└────────┬────────┘                │
-│                         │
-│ Triggers LP             │
-▼                         │
-┌─────────────────┐                │
+┌─────────────────┐       |        │
+│  Collects ETH   │       |        │
+│  Until Sellout  │       |        │
+└────────┬────────┘       |        │
+│                         │        |
+│ Triggers LP             │        |
+▼                         │        |
+┌─────────────────┐       |        │
 │   LPManager     │────────────────┘
 │  Creates Pool   │
 └────────┬────────┘
@@ -76,7 +76,7 @@ This system combines three smart contracts to create a trustless NFT-to-token la
 ▼
 ┌─────────────────┐
 │  Aerodrome DEX  │
-│  DBLN/WETH Pool │
+│   TINFOIL/WETH  │
 └─────────────────┘
 ```
 
@@ -99,9 +99,9 @@ BASE_RPC_URL=https://mainnet.base.org
 BASESCAN_API_KEY=your_basescan_api_key
 
 # After deployment, add these:
-DOUBLOON_TOKEN_ADDRESS=
+TINFOIL_TOKEN_ADDRESS=
 LP_MANAGER_ADDRESS=
-PIXELPIRATES_ADDRESS=
+CONSPIRAPUPPETS_ADDRESS=
 ```
 
 ### Deploy Contracts
@@ -116,25 +116,39 @@ forge script script/Deploy.s.sol --rpc-url $BASE_RPC_URL --broadcast --verify
 
 ### Step 1: Set Payout Address (CRITICAL - Do This First!)
 ```bash
-bashcast send $PIXELPIRATES_ADDRESS   'updatePayoutAddress(address,address)'   0x00005EA00Ac477B1030CE78506496e8C2dE24bf5   $PIXELPIRATES_ADDRESS   --private-key $PRIVATE_KEY   --rpc-url $BASE_RPC_URL
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  'updatePayoutAddress(address,address)' \
+  0x00005EA00Ac477B1030CE78506496e8C2dE24bf5 \
+  $CONSPIRAPUPPETS_ADDRESS \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL
 ```
 **Why:** Ensures mint proceeds go to the NFT contract for automated LP creation.
 
 ### Step 2: Configure Public Drop
 ```bash
-bashcast send $PIXELPIRATES_ADDRESS   'updatePublicDrop(address,(uint80,uint48,uint48,uint16,uint16,bool))'   0x00005EA00Ac477B1030CE78506496e8C2dE24bf5   '(1000000000000000,$(date +%s),2000000000,3333,10,false)'   --private-key $PRIVATE_KEY   --rpc-url $BASE_RPC_URL
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  'updatePublicDrop(address,(uint80,uint48,uint48,uint16,uint16,bool))' \
+  0x00005EA00Ac477B1030CE78506496e8C2dE24bf5 \
+  '(1000000000000000,$(date +%s),2000000000,3333,10,false)' \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL
 ```
 
 ### Step 3: Upload Metadata
 ```bash
-bashcast send $PIXELPIRATES_ADDRESS   'setBaseURI(string)'   'ipfs://YOUR_CID/'   --private-key $PRIVATE_KEY   --rpc-url $BASE_RPC_URL
+cast send $CONSPIRAPUPPETS_ADDRESS \
+  'setBaseURI(string)' \
+  'ipfs://YOUR_CID/' \
+  --private-key $PRIVATE_KEY \
+  --rpc-url $BASE_RPC_URL
 ```
 
 ---
 
 ## 📊 Monitoring
 ```bash
-bashforge script script/CheckStatus.s.sol --rpc-url $BASE_RPC_URL
+forge script script/CheckStatus.s.sol --rpc-url $BASE_RPC_URL
 ```
 Shows:
 - NFTs minted / remaining

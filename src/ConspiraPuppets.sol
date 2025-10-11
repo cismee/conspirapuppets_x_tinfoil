@@ -5,7 +5,7 @@ import {ERC721SeaDrop} from "seadrop/src/ERC721SeaDrop.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import "./interfaces/Interfaces.sol";
 
-contract PixelPirates is ERC721SeaDrop {
+contract ConspiraPuppets is ERC721SeaDrop {
     uint256 public constant MAX_SUPPLY = 3333;
     uint256 public constant TOKENS_PER_NFT = 499_549 * 10**18;
     uint256 public constant LP_TOKEN_AMOUNT = 1_665_000_000 * 10**18;
@@ -19,7 +19,7 @@ contract PixelPirates is ERC721SeaDrop {
     uint256 public operationalFunds = 0;
     uint256 public totalEthReceived = 0;
     
-    address public immutable doubloonToken;
+    address public immutable tinfoilToken;
     address public lpManager;
     
     event MintCompleted(uint256 totalSupply, uint256 scheduledLPCreation);
@@ -37,12 +37,12 @@ contract PixelPirates is ERC721SeaDrop {
         string memory name,
         string memory symbol,
         address[] memory allowedSeaDrop,
-        address _doubloonToken,
+        address _tinfoilToken,
         address _lpManager
     ) ERC721SeaDrop(name, symbol, allowedSeaDrop) {
-        require(_doubloonToken != address(0), "Invalid token address");
+        require(_tinfoilToken != address(0), "Invalid token address");
         
-        doubloonToken = _doubloonToken;
+        tinfoilToken = _tinfoilToken;
         lpManager = _lpManager;
     }
 
@@ -64,7 +64,7 @@ contract PixelPirates is ERC721SeaDrop {
         
         if (from == address(0) && to != address(0)) {
             uint256 tokensToMint = quantity * TOKENS_PER_NFT;
-            IDoubloonToken(doubloonToken).mint(to, tokensToMint);
+            ITinfoilToken(tinfoilToken).mint(to, tokensToMint);
             
             emit TokensDistributed(to, tokensToMint);
             
@@ -85,7 +85,7 @@ contract PixelPirates is ERC721SeaDrop {
         mintCompleted = true;
         
         if (TOKEN_REMAINDER > 0) {
-            IDoubloonToken(doubloonToken).mint(owner(), TOKEN_REMAINDER);
+            ITinfoilToken(tinfoilToken).mint(owner(), TOKEN_REMAINDER);
             emit RemainderMinted(owner(), TOKEN_REMAINDER);
         }
         
@@ -119,7 +119,7 @@ contract PixelPirates is ERC721SeaDrop {
         
         require(lpEthAmount > 0, "No ETH for LP");
         
-        IDoubloonToken(doubloonToken).mint(lpManager, LP_TOKEN_AMOUNT);
+        ITinfoilToken(tinfoilToken).mint(lpManager, LP_TOKEN_AMOUNT);
         
         bool success = ILPManager(lpManager).createAndBurnLP{value: lpEthAmount}(
             LP_TOKEN_AMOUNT,
@@ -132,10 +132,10 @@ contract PixelPirates is ERC721SeaDrop {
             // Whitelist the LP pair that was just created
             address lpPair = ILPManager(lpManager).getExpectedLPPair();
             if (lpPair != address(0)) {
-                IDoubloonToken(doubloonToken).setTransferWhitelist(lpPair, true);
+                ITinfoilToken(tinfoilToken).setTransferWhitelist(lpPair, true);
             }
             
-            IDoubloonToken(doubloonToken).enableTrading();
+            ITinfoilToken(tinfoilToken).enableTrading();
             emit TradingEnabled();
         }
     }
@@ -153,7 +153,7 @@ contract PixelPirates is ERC721SeaDrop {
         
         emit FundsAllocated(lpEthAmount, operationalFunds);
         
-        IDoubloonToken(doubloonToken).mint(lpManager, LP_TOKEN_AMOUNT);
+        ITinfoilToken(tinfoilToken).mint(lpManager, LP_TOKEN_AMOUNT);
         
         bool success = ILPManager(lpManager).createAndBurnLP{value: lpEthAmount}(
             LP_TOKEN_AMOUNT,
@@ -166,10 +166,10 @@ contract PixelPirates is ERC721SeaDrop {
             // Whitelist the LP pair that was just created
             address lpPair = ILPManager(lpManager).getExpectedLPPair();
             if (lpPair != address(0)) {
-                IDoubloonToken(doubloonToken).setTransferWhitelist(lpPair, true);
+                ITinfoilToken(tinfoilToken).setTransferWhitelist(lpPair, true);
             }
             
-            IDoubloonToken(doubloonToken).enableTrading();
+            ITinfoilToken(tinfoilToken).enableTrading();
             emit TradingEnabled();
         }
     }
@@ -187,9 +187,9 @@ contract PixelPirates is ERC721SeaDrop {
         
         emit FundsAllocated(lpEthAmount, operationalFunds);
         
-        uint256 currentBalance = IERC20(doubloonToken).balanceOf(lpManager);
+        uint256 currentBalance = IERC20(tinfoilToken).balanceOf(lpManager);
         if (currentBalance < LP_TOKEN_AMOUNT) {
-            IDoubloonToken(doubloonToken).mint(lpManager, LP_TOKEN_AMOUNT - currentBalance);
+            ITinfoilToken(tinfoilToken).mint(lpManager, LP_TOKEN_AMOUNT - currentBalance);
         }
         
         bool success = ILPManager(lpManager).createAndBurnLP{value: lpEthAmount}(
@@ -203,10 +203,10 @@ contract PixelPirates is ERC721SeaDrop {
             // Whitelist the LP pair that was just created
             address lpPair = ILPManager(lpManager).getExpectedLPPair();
             if (lpPair != address(0)) {
-                IDoubloonToken(doubloonToken).setTransferWhitelist(lpPair, true);
+                ITinfoilToken(tinfoilToken).setTransferWhitelist(lpPair, true);
             }
             
-            IDoubloonToken(doubloonToken).enableTrading();
+            ITinfoilToken(tinfoilToken).enableTrading();
             emit TradingEnabled();
         }
     }

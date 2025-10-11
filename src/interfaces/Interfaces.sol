@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-interface IDoubloonToken {
+interface ITinfoilToken {
     function mint(address to, uint256 amount) external;
     function enableTrading() external;
     function setTransferWhitelist(address account, bool allowed) external;

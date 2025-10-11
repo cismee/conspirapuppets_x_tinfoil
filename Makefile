@@ -1,4 +1,6 @@
-# PixelPirates - Automated NFT-to-Token Launch System
+### File 10: Makefile
+```makefile
+# ConspiraPuppets - Automated NFT-to-Token Launch System
 # Makefile for common operations
 
 # Load environment variables
@@ -8,8 +10,8 @@ export
 # Default target
 .PHONY: help
 help:
-	@echo "PixelPirates Launch System - Available Commands"
-	@echo "================================================"
+	@echo "ConspiraPuppets Launch System - Available Commands"
+	@echo "=================================================="
 	@echo ""
 	@echo "DEPLOYMENT:"
 	@echo "  make deploy              Deploy all contracts to Base"
@@ -49,7 +51,7 @@ help:
 
 .PHONY: deploy
 deploy:
-	@echo "Deploying PixelPirates system to Base..."
+	@echo "Deploying ConspiraPuppets system to Base..."
 	forge script script/Deploy.s.sol \
 		--rpc-url $(BASE_RPC_URL) \
 		--broadcast \
@@ -66,14 +68,14 @@ deploy-test:
 .PHONY: verify
 verify:
 	@echo "Verifying contracts on Basescan..."
-	@echo "DoubloonToken: $(DOUBLOON_TOKEN_ADDRESS)"
-	forge verify-contract $(DOUBLOON_TOKEN_ADDRESS) \
-		src/DoubloonToken.sol:DoubloonToken \
+	@echo "TinfoilToken: $(TINFOIL_TOKEN_ADDRESS)"
+	forge verify-contract $(TINFOIL_TOKEN_ADDRESS) \
+		src/TinfoilToken.sol:TinfoilToken \
 		--chain-id 8453 \
 		--etherscan-api-key $(BASESCAN_API_KEY)
-	@echo "PixelPirates: $(PIXELPIRATES_ADDRESS)"
-	forge verify-contract $(PIXELPIRATES_ADDRESS) \
-		src/PixelPirates.sol:PixelPirates \
+	@echo "ConspiraPuppets: $(CONSPIRAPUPPETS_ADDRESS)"
+	forge verify-contract $(CONSPIRAPUPPETS_ADDRESS) \
+		src/ConspiraPuppets.sol:ConspiraPuppets \
 		--chain-id 8453 \
 		--etherscan-api-key $(BASESCAN_API_KEY)
 	@echo "LPManager: $(LP_MANAGER_ADDRESS)"
@@ -90,10 +92,10 @@ verify:
 setup-payout:
 	@echo "Setting payout address to NFT contract..."
 	@echo "This ensures mint proceeds go to the contract for LP creation"
-	cast send $(PIXELPIRATES_ADDRESS) \
+	cast send $(CONSPIRAPUPPETS_ADDRESS) \
 		'updatePayoutAddress(address,address)' \
 		0x00005EA00Ac477B1030CE78506496e8C2dE24bf5 \
-		$(PIXELPIRATES_ADDRESS) \
+		$(CONSPIRAPUPPETS_ADDRESS) \
 		--private-key $(PRIVATE_KEY) \
 		--rpc-url $(BASE_RPC_URL)
 	@echo "✅ Payout address set!"
@@ -104,7 +106,7 @@ setup-drop:
 	@echo "Mint price: 0.001 ETH"
 	@echo "Max supply: 3333"
 	@echo "Max per wallet: 10"
-	cast send $(PIXELPIRATES_ADDRESS) \
+	cast send $(CONSPIRAPUPPETS_ADDRESS) \
 		'updatePublicDrop(address,(uint80,uint48,uint48,uint16,uint16,bool))' \
 		0x00005EA00Ac477B1030CE78506496e8C2dE24bf5 \
 		'(1000000000000000,$$(date +%s),2000000000,3333,10,false)' \
@@ -128,12 +130,12 @@ status:
 
 .PHONY: balance
 balance:
-	@echo "Checking your DBLN token balance..."
-	@cast call $(DOUBLOON_TOKEN_ADDRESS) \
+	@echo "Checking your TINFOIL token balance..."
+	@cast call $(TINFOIL_TOKEN_ADDRESS) \
 		'balanceOf(address)(uint256)' \
 		$$(cast wallet address --private-key $(PRIVATE_KEY)) \
 		--rpc-url $(BASE_RPC_URL) | \
-		awk '{printf "Balance: %s DBLN\n", $$1/1e18}'
+		awk '{printf "Balance: %s TINFOIL\n", $$1/1e18}'
 
 .PHONY: check-lp
 check-lp:
@@ -151,14 +153,14 @@ check-lp:
 check-eth:
 	@echo "Checking contract ETH balances..."
 	@echo -n "NFT Contract: "
-	@cast balance $(PIXELPIRATES_ADDRESS) --rpc-url $(BASE_RPC_URL) --ether
+	@cast balance $(CONSPIRAPUPPETS_ADDRESS) --rpc-url $(BASE_RPC_URL) --ether
 	@echo -n "Your Wallet: "
 	@cast balance $$(cast wallet address --private-key $(PRIVATE_KEY)) --rpc-url $(BASE_RPC_URL) --ether
 
 .PHONY: check-trading
 check-trading:
 	@echo -n "Trading Enabled: "
-	@cast call $(DOUBLOON_TOKEN_ADDRESS) \
+	@cast call $(TINFOIL_TOKEN_ADDRESS) \
 		'tradingEnabled()(bool)' \
 		--rpc-url $(BASE_RPC_URL)
 
@@ -169,7 +171,7 @@ check-trading:
 .PHONY: create-lp
 create-lp:
 	@echo "Creating liquidity pool (requires 5-minute delay to have passed)..."
-	cast send $(PIXELPIRATES_ADDRESS) \
+	cast send $(CONSPIRAPUPPETS_ADDRESS) \
 		'createLP()' \
 		--private-key $(PRIVATE_KEY) \
 		--rpc-url $(BASE_RPC_URL) \
@@ -180,7 +182,7 @@ create-lp:
 .PHONY: create-lp-now
 create-lp-now:
 	@echo "Creating liquidity pool IMMEDIATELY (bypasses delay)..."
-	cast send $(PIXELPIRATES_ADDRESS) \
+	cast send $(CONSPIRAPUPPETS_ADDRESS) \
 		'createLPImmediate()' \
 		--private-key $(PRIVATE_KEY) \
 		--rpc-url $(BASE_RPC_URL) \
@@ -198,7 +200,7 @@ retry-lp:
 .PHONY: withdraw
 withdraw:
 	@echo "Withdrawing operational funds..."
-	cast send $(PIXELPIRATES_ADDRESS) \
+	cast send $(CONSPIRAPUPPETS_ADDRESS) \
 		'withdrawOperationalFunds()' \
 		--private-key $(PRIVATE_KEY) \
 		--rpc-url $(BASE_RPC_URL)
@@ -220,7 +222,7 @@ emergency-withdraw:
 	@echo "This should only be used if LP creation has failed completely."
 	@read -p "Are you sure? (yes/no): " confirm; \
 	if [ "$$confirm" = "yes" ]; then \
-		cast send $(PIXELPIRATES_ADDRESS) \
+		cast send $(CONSPIRAPUPPETS_ADDRESS) \
 			'emergencyWithdraw()' \
 			--private-key $(PRIVATE_KEY) \
 			--rpc-url $(BASE_RPC_URL); \
@@ -272,14 +274,14 @@ install:
 addresses:
 	@echo "Deployed Contract Addresses:"
 	@echo "============================"
-	@echo "DoubloonToken: $(DOUBLOON_TOKEN_ADDRESS)"
-	@echo "LPManager:     $(LP_MANAGER_ADDRESS)"
-	@echo "PixelPirates:  $(PIXELPIRATES_ADDRESS)"
+	@echo "TinfoilToken:      $(TINFOIL_TOKEN_ADDRESS)"
+	@echo "LPManager:         $(LP_MANAGER_ADDRESS)"
+	@echo "ConspiraPuppets:   $(CONSPIRAPUPPETS_ADDRESS)"
 	@echo ""
 	@echo "View on Basescan:"
-	@echo "DoubloonToken: https://basescan.org/address/$(DOUBLOON_TOKEN_ADDRESS)"
-	@echo "PixelPirates:  https://basescan.org/address/$(PIXELPIRATES_ADDRESS)"
-	@echo "LPManager:     https://basescan.org/address/$(LP_MANAGER_ADDRESS)"
+	@echo "TinfoilToken:      https://basescan.org/address/$(TINFOIL_TOKEN_ADDRESS)"
+	@echo "ConspiraPuppets:   https://basescan.org/address/$(CONSPIRAPUPPETS_ADDRESS)"
+	@echo "LPManager:         https://basescan.org/address/$(LP_MANAGER_ADDRESS)"
 
 .PHONY: wallet
 wallet:
@@ -293,7 +295,7 @@ wallet:
 .PHONY: check-payout
 check-payout:
 	@echo -n "Current Payout Address: "
-	@cast call $(PIXELPIRATES_ADDRESS) \
+	@cast call $(CONSPIRAPUPPETS_ADDRESS) \
 		'getCreatorPayoutAddress(address)(address)' \
 		0x00005EA00Ac477B1030CE78506496e8C2dE24bf5 \
 		--rpc-url $(BASE_RPC_URL)
@@ -305,7 +307,7 @@ check-payout:
 .PHONY: airdrop
 airdrop:
 	@echo "Airdrop function - requires manual parameters"
-	@echo "Usage: cast send $(PIXELPIRATES_ADDRESS) 'airdrop(address[],uint256[])' '[ADDRESSES]' '[QUANTITIES]' --private-key $(PRIVATE_KEY) --rpc-url $(BASE_RPC_URL)"
+	@echo "Usage: cast send $(CONSPIRAPUPPETS_ADDRESS) 'airdrop(address[],uint256[])' '[ADDRESSES]' '[QUANTITIES]' --private-key $(PRIVATE_KEY) --rpc-url $(BASE_RPC_URL)"
 
 # ============================================================================
 # QUICK LAUNCH WORKFLOW
@@ -368,7 +370,7 @@ watch:
 	@echo "Press Ctrl+C to stop"
 	@while true; do \
 		clear; \
-		echo "PixelPirates Status - $$(date)"; \
+		echo "ConspiraPuppets Status - $$(date)"; \
 		echo "====================================="; \
 		make status 2>/dev/null || true; \
 		sleep 10; \
@@ -382,7 +384,7 @@ watch:
 test-mint:
 	@echo "Test minting 1 NFT..."
 	@echo "⚠️  This will spend 0.001 ETH"
-	cast send $(PIXELPIRATES_ADDRESS) \
+	cast send $(CONSPIRAPUPPETS_ADDRESS) \
 		'mintPublic(address,uint256,address,bytes)' \
 		0x00005EA00Ac477B1030CE78506496e8C2dE24bf5 \
 		1 \
@@ -425,8 +427,8 @@ BASE_RPC_URL=https://mainnet.base.org
 BASESCAN_API_KEY=your_basescan_api_key
 
 # Deployed contract addresses (fill after deployment)
-DOUBLOON_TOKEN_ADDRESS=
+TINFOIL_TOKEN_ADDRESS=
 LP_MANAGER_ADDRESS=
-PIXELPIRATES_ADDRESS=
+CONSPIRAPUPPETS_ADDRESS=
 EOF
 	@echo "✅ .env.template created!"
